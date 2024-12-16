@@ -1,0 +1,12 @@
+[package]
+name = "decentralized-storage-"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+aes = "0.8.4"                 # AES şifreleme kütüphanesi
+hmac = "0.12.1"               # HMAC için kütüphane
+sha2 = "0.10"               # SHA-2 için kütüphane
+rand = "0.8"                # Rastgele sayı üretimi için kütüphane
+serde = { version = "1.0", features = ["derive"] }   # Serileştirme için kütüphane
+serde_json = "1.0"          # JSON verisi için serileştirme desteği
