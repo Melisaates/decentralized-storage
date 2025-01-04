@@ -10,32 +10,39 @@ use hex::{encode, decode};
 
 type Aes128Cbc = Cbc<Aes128, Pkcs7>;
 
-// Anahtar ve IV üretimi
+// Key and IV production
 fn generate_key_iv() -> ([u8; 16], [u8; 16]) {
+    let mut key = [0u8; 16];
+    let mut iv = [0u8; 16];
     let mut rng = rand::thread_rng();
-    let key: [u8; 16] = rng.gen();
-    let iv: [u8; 16] = rng.gen();
+
+    key = rng.gen();
+    iv = rng.gen();
+    
     (key, iv)
 }
 
-// Dosyayı şifrele
-fn encrypt_file(input_path: &str, output_path: &str, key: &[u8; 16], iv: &[u8; 16]) -> std::io::Result<()> {
-    let mut input_file = File::open(input_path)?;
+// Encrypt file
+fn encrypt_file(file_path: &str,output_path: &str ,key: &[u8; 16], iv: &[u8; 16]) -> std::io::Result<()> {
+    let mut file = File::open(file_path).unwrap();
     let mut data = Vec::new();
-    input_file.read_to_end(&mut data)?;
+    file.read_to_end(&mut data).unwrap();
 
-    let cipher = Aes128Cbc::new_from_slices(key, iv).unwrap();
-    let encrypted_data = cipher.encrypt_vec(&data);
+    let cipher = Aes128Cbc::new_from_slice(key, iv).unwrap();
+    let ciphertext = cipher.encrypt_vec(&data);
 
-    // HMAC ile dosya bütünlüğünü kontrol et
+
+    //Check file integrity with HMAC
     let mut hmac = Hmac::<Sha256>::new_from_slice(key).expect("HMAC can take key of any size");
-    hmac.update(&encrypted_data);
+    hmac.update(&ciphertext);   
     let hmac_result = hmac.finalize().into_bytes();
+    
+    // Store both encrypted data and HMAC value 
 
-    // Hem şifreli veriyi hem de HMAC değerini sakla
-    let mut output_file = OpenOptions::new().create(true).write(true).open(output_path)?;
-    output_file.write_all(&encrypted_data)?;
+    let mut output_file = OpenOptions::new().create(true).Write(true).open(output_path)?;
+    output_file.write_all(&ciphertext)?;
     output_file.write_all(&hmac_result)?;
 
     Ok(())
 }
+
