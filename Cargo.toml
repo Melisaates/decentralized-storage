@@ -4,9 +4,20 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-aes = "0.8.4"                 # AES şifreleme kütüphanesi
-hmac = "0.12.1"               # HMAC için kütüphane
-sha2 = "0.10"               # SHA-2 için kütüphane
-rand = "0.8"                # Rastgele sayı üretimi için kütüphane
-serde = { version = "1.0", features = ["derive"] }   # Serileştirme için kütüphane
-serde_json = "1.0"          # JSON verisi için serileştirme desteği
+aes = "0.7"
+cipher = "0.4.4"
+block-modes = "0.8"
+rand = "0.8"
+hmac = "0.11"
+sha2 = "0.9"
+hex = "0.4"
+generic-array = "0.14"
+
+
+
+[dev-dependencies]
+assert_cmd = "2.0"
+predicates = "3.0"
+
+[profile.release]
+opt-level = 3           # Optimizasyon seviyesi (hız için optimize)
