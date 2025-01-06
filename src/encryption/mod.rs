@@ -1,16 +1,14 @@
-use aes::Aes128;
-use cipher::{BlockDecrypt, BlockEncrypt};
+use aes::{Aes128, Aes256, BlockEncrypt, NewBlockCipher};
 use block_modes::{BlockMode, Cbc};
 use block_modes::block_padding::Pkcs7;
-use generic_array::GenericArray;
 use rand::Rng;
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
 use hmac::{Hmac, Mac, NewMac};
 use sha2::Sha256;
-use hex::{encode, decode};
 
 type Aes128Cbc = Cbc<Aes128, Pkcs7>;
+type Aes256Cbc = Cbc<Aes256, Pkcs7>;
 
 // Anahtar ve IV üretimi
 pub fn generate_key_iv() -> ([u8; 16], [u8; 16]) {
