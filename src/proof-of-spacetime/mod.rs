@@ -3,6 +3,7 @@ use sha2::{Sha256, Digest};
 use std::time::{SystemTime, Duration};
 use std::fs::File;
 use std::io::{Read, Write};
+use tokio::time::{sleep, Duration as TokioDuration};
 
 const CHALLENGE_TIMEOUT: Duration = Duration::new(20 * 60, 0);  // 20 dakika
 
@@ -78,8 +79,17 @@ fn proof_of_spacetime(file_path: &str) {
     }
 }
 
+// Periyodik olarak proof_of_spacetime çağrısı yapan fonksiyon
+#[tokio::main]
+async fn periodic_check(file_path: &str) {
+    loop {
+        proof_of_spacetime(file_path);
+        sleep(TokioDuration::from_secs(3600)).await;  // 1 saatlik bekleme
+    }
+}
+
 // fn main() {
-//     // Dosya yolunu ver ve challenge doğrulamasını başlat
+//     // Dosya yolunu ver ve periyodik challenge doğrulamasını başlat
 //     let file_path = "path/to/storage/encrypted_file.dat";  // Dosya yolu
-//     proof_of_spacetime(file_path);
+//     periodic_check(file_path);  // Periyodik kontrol başlatılır
 // }
