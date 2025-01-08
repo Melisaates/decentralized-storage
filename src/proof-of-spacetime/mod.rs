@@ -93,3 +93,7 @@ async fn periodic_check(file_path: &str) {
 //     let file_path = "path/to/storage/encrypted_file.dat";  // Dosya yolu
 //     periodic_check(file_path);  // Periyodik kontrol başlatılır
 // }
+
+
+
+
