@@ -2,12 +2,12 @@ use rand::{thread_rng, Rng};
 use sha2::{Sha256, Digest};
 use std::time::{SystemTime, Duration};
 use std::fs::File;
-use std::io::{Read, Write};
+use std::io::{Read, Seek, Write};
 use tokio::time::{sleep, Duration as TokioDuration};
 
 const CHALLENGE_TIMEOUT: Duration = Duration::new(20 * 60, 0);  // 20 dakika
 
-// Rastgele kelime üreten fonksiyon
+// Rastgele kelime üretir.
 fn generate_random_challenge() -> String {
     let mut rng = thread_rng();
     let challenge_word: String = (0..10)
@@ -16,13 +16,13 @@ fn generate_random_challenge() -> String {
     challenge_word
 }
 
-// Dosyanın rastgele bir parçasını okuyan fonksiyon (Örnek olarak 100 byte)
+// Dosyanın rastgele bir parçasını okur.
 fn get_random_file_part(file_path: &str, byte_count: usize) -> Result<Vec<u8>, std::io::Error> {
     let mut file = File::open(file_path)?;
     let mut rng = thread_rng();
     let file_size = std::fs::metadata(file_path)?.len() as usize;
     
-    // Dosyanın rastgele bir yerinden başla
+    // Dosyanın rastgele bir yerinden başlar.
     let start_byte = rng.gen_range(0..file_size - byte_count);
     let mut buffer = vec![0; byte_count];
     file.seek(std::io::SeekFrom::Start(start_byte as u64))?;
@@ -31,7 +31,7 @@ fn get_random_file_part(file_path: &str, byte_count: usize) -> Result<Vec<u8>, s
     Ok(buffer)
 }
 
-// Hash işlemi (dosya parçası ve challenge kelimesi)
+// Hash işlemi yapar.
 fn generate_hash(file_part: &[u8], challenge_word: &str) -> Vec<u8> {
     let mut hasher = Sha256::new();
     hasher.update(file_part);
@@ -39,12 +39,12 @@ fn generate_hash(file_part: &[u8], challenge_word: &str) -> Vec<u8> {
     hasher.finalize().to_vec()
 }
 
-// Challenge işlemine yanıt veren fonksiyon
+// Challenge işlemine yanıt veren fonksiyon.
 fn respond_to_challenge(file_path: &str) -> Result<Vec<u8>, String> {
     let challenge_word = generate_random_challenge();
     println!("Challenge Word: {}", challenge_word);
     
-    // Dosyanın rastgele bir parçasını al
+    // Dosyanın rastgele bir parçasını alır.
     let file_part = match get_random_file_part(file_path, 100) {
         Ok(part) => part,
         Err(_) => return Err("Dosyadan veri alınamadı!".to_string()),
@@ -81,10 +81,10 @@ fn proof_of_spacetime(file_path: &str) {
 
 // Periyodik olarak proof_of_spacetime çağrısı yapan fonksiyon
 #[tokio::main]
-async fn periodic_check(file_path: &str) {
+pub async fn periodic_check(file_path: &str) {
     loop {
         proof_of_spacetime(file_path);
-        sleep(TokioDuration::from_secs(3600)).await;  // 1 saatlik bekleme
+        sleep(TokioDuration::from_secs(30)).await;  // 1 saatlik bekleme
     }
 }
 

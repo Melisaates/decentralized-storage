@@ -2,6 +2,10 @@ use jsonwebtoken::{encode, decode, Header, Validation, EncodingKey, DecodingKey}
 use serde::{Serialize, Deserialize};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+//jwt ile token oluşturma ve doğrulama işlemleri
+
+
+
 #[derive(Serialize, Deserialize)]
 pub struct Claims {
     pub sub: String, // Kullanıcı bilgisi
@@ -22,7 +26,7 @@ impl TokenManager {
         let expiration = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
-            .as_secs() + 3600; // Token 1 saat geçerli olacak
+            .as_secs() + 3600; //1 saat geçerli olacak
 
         let claims = Claims {
             sub: user_id.to_string(),
@@ -48,3 +52,23 @@ impl TokenManager {
         }
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*Kullanıcı giriş yaptığında bir token oluşturulur
+Bu token kullanıcıya verilir
+Kullanıcı her istek yaptığında bu token'ı gönderir
+Sunucu token'ı doğrulayarak kullanıcının kimliğini teyit eder
+
+Her token 1 saat geçerli kalacak şekilde ayarlanmış ve güvenli bir şekilde şifrelenmiş durumda. */

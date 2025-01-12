@@ -7,7 +7,11 @@ use std::fs;
 use std::sync::{Arc, RwLock};
 use crate::encryption::{encrypt_file, decrypt_file, generate_key_iv};
 use crate::proof_of_spacetime::proof_of_spacetime;
-use crate::token::check_access_token; // JWT doğrulama işlemi için
+use crate::token::check_access_token; 
+
+// jwt ile token oluşturma ve doğrulama işlemleri
+//  Dosya yükleme, indirme, doğrulama ve silme işlemleri için API'ler
+
 
 #[derive(Deserialize)]
 pub struct FileRequest {
@@ -33,7 +37,7 @@ async fn upload_file(file_req: web::Json<FileRequest>, token: Option<String>) ->
     let file_path = &file_req.file_path;
 
     // Dosyayı şifrele ve depola
-    match encrypt_file(file_path, "path/to/encrypted/storage", &generate_key_iv().0, &generate_key_iv().1) {
+    match encrypt_file(file_path, "my_path", &generate_key_iv().0, &generate_key_iv().1) {
         Ok(_) => HttpResponse::Ok().json(FileResponse {
             message: "Dosya başarıyla yüklendi ve şifrelendi.".to_string(),
         }),
@@ -57,7 +61,7 @@ async fn download_file(file_req: web::Json<FileRequest>, token: Option<String>) 
     let file_path = &file_req.file_path;
 
     // Dosyayı çöz ve geri gönder
-    match decrypt_file(file_path, "path/to/decrypted/storage", &generate_key_iv().0, &generate_key_iv().1) {
+    match decrypt_file(file_path, "my_path", &generate_key_iv().0, &generate_key_iv().1) {
         Ok(_) => HttpResponse::Ok().json(FileResponse {
             message: "Dosya başarıyla indirildi ve şifresi çözüldü.".to_string(),
         }),
@@ -117,12 +121,12 @@ async fn delete_file(file_req: web::Json<FileRequest>, token: Option<String>) ->
 pub async fn start_api() -> std::io::Result<()> {
     HttpServer::new(|| {
         App::new()
-            .app_data(Data::new(Arc::new(RwLock::new(()))))  // Gerekli verilerle yapılandırma
-            .wrap(Logger::default())  // Logger middleware
+            .app_data(Data::new(Arc::new(RwLock::new(()))))  
+            .wrap(Logger::default())  
             .route("/upload", web::post().to(upload_file))
             .route("/download", web::post().to(download_file))
             .route("/validate", web::post().to(validate_file))
-            .route("/delete", web::post().to(delete_file)) // Silme endpoint'i
+            .route("/delete", web::post().to(delete_file)) 
     })
     .bind("127.0.0.1:8080")? // API'nin dinleyeceği port
     .run()
