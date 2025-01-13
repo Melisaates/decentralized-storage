@@ -1,21 +1,11 @@
-use ethers::types::spoof::storage;
-use hex::encode;
-use node::Node;
-use std::collections::HashMap;
-mod encryption;
-use encryption::{decrypt_file, encrypt_file};
-use rand::Rng;
-mod key_management;
-mod proof_of_spacetime;
-use proof_of_spacetime::{periodic_check};
 mod p2p;
-use p2p::{Network};
-mod node;
-mod storage;
+use p2p::{find_available_node, Network};  // P2P ağına bağlanmak için
 mod blockchain;
-use blockchain::{BscClient};
-
+use blockchain::{BscClient};  // Binance Smart Chain ile iletişim
 use ethers::types::Address;
+mod storage;
+mod encryption;
+mod key_management;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -26,28 +16,41 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let file_data = b"Merhaba Binance Smart Chain!";
     let file_name = "example.txt";
 
-    // Node'un diskinin yolu
-    let storage_path = "./node_storage";
-    storage::store_file(file_data, storage_path, file_name)?;
+    // Gerçek ağdaki node'lar
+    let mut network = Network::new();  // P2P ağında bulunan node'larla bağlantı
+    let nodes = network.get_nodes().await;  // Ağdaki node'ları al
 
-    println!("Dosya başarıyla node üzerine yüklendi: {}", file_name);
+    // Dosya boyutunu al
+    let file_size = file_data.len() as u64;
 
-    // Metadata bilgisi oluştur
-    let file_id = "unique_file_hash";
-    let node_id = "node1";
+    // Dosya için uygun node bul
+    if let Some(node) = find_available_node(file_size, &nodes) {
+        // Dosyayı uygun node üzerine depola
+        let node_storage_path = node.storage_path.clone();
+        storage::store_file(file_data, &node_storage_path, file_name)?;
+        println!("Dosya başarıyla node üzerine yüklendi: {}", file_name);
 
-    let contract_address: Address = "0xYourSmartContractAddress".parse()?;
+        // Metadata bilgisi oluştur
+        let file_id = "unique_file_hash";  // Gerçek dosya hash'i ile değiştirilmelidir
+        let node_id = &node.id;  // Node kimliğini al
 
-    // Metadata bilgisini Smart Contract'a gönder
-    let tx_hash = client
-        .send_metadata(contract_address, file_id, node_id)
-        .await?;
+        let contract_address: Address = "0xYourSmartContractAddress".parse()?;
 
-    println!("Metadata blockchain'e yazıldı. İşlem Hash'i: {:?}", tx_hash);
+        // Metadata bilgisini Smart Contract'a gönder
+        let tx_hash = client
+            .send_metadata(contract_address, file_id, node_id)
+            .await?;
+
+        println!("Metadata blockchain'e yazıldı. İşlem Hash'i: {:?}", tx_hash);
+    } else {
+        println!("Yeterli depolama alanı bulunan node bulunamadı.");
+    }
 
     Ok(())
-
 }
+
+
+
 
 
 
@@ -127,11 +130,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // println!("Anahtar ve IV kullanıcıya kaydedildi: {}", key_file_path);
 
     // // 3. Dosyayı şifrele
-    // encrypt_file(file_path, encrypted_file_path, &key_data.key, &key_data.iv)?;
+    // encrypt_file_path(file_path, encrypted_file_path, &key_data.key, &key_data.iv)?;
     // println!("Dosya başarıyla şifrelendi: {}", encrypted_file_path);
 
     // // 4. Dosyanın şifresini çöz
-    // decrypt_file(
+    // decrypt_file_path(
     //     encrypted_file_path,
     //     decrypted_file_path,
     //     &key_data.key,

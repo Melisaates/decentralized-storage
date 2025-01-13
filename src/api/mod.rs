@@ -5,7 +5,7 @@ use actix_web::http::header;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::sync::{Arc, RwLock};
-use crate::encryption::{encrypt_file, decrypt_file, generate_key_iv};
+use crate::encryption::{encrypt_file_path, decrypt_file_path, generate_key_iv};
 use crate::proof_of_spacetime::proof_of_spacetime;
 use crate::token::check_access_token; 
 
@@ -61,7 +61,7 @@ async fn download_file(file_req: web::Json<FileRequest>, token: Option<String>) 
     let file_path = &file_req.file_path;
 
     // Dosyayı çöz ve geri gönder
-    match decrypt_file(file_path, "my_path", &generate_key_iv().0, &generate_key_iv().1) {
+    match decrypt_file_path(file_path, "my_path", &generate_key_iv().0, &generate_key_iv().1) {
         Ok(_) => HttpResponse::Ok().json(FileResponse {
             message: "Dosya başarıyla indirildi ve şifresi çözüldü.".to_string(),
         }),

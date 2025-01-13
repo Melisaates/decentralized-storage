@@ -7,7 +7,7 @@ use libp2p::{swarm, PeerId};
 use sha2::{Sha256, Digest};
 use tokio::runtime::Runtime;
 use std::sync::Arc;
-use encryption::{encrypt_file, decrypt_file};
+use encryption::{encrypt_file_path, decrypt_file_path};
 mod network;
 use network::{send_file, receive_file};
 
@@ -20,7 +20,7 @@ const RPC_URL: &str = "https://mainnet.infura.io/v3/YOUR_INFURA_PROJECT_ID";
 // Dosya şifreleme işlemi ve blockchain'e yükleme
 pub async fn upload_file_to_blockchain(file_path: &str, encrypted_file_path: &str, key: &[u8; 16], iv: &[u8; 16]) -> std::io::Result<()> {
     // Dosya şifrele
-    encrypt_file(file_path, encrypted_file_path, key, iv)?;
+    encrypt_file_path(file_path, encrypted_file_path, key, iv)?;
     println!("Dosya şifrelendi ve yüklendi: {}", encrypted_file_path);
 
     // Dosya hash'ini hesapla
