@@ -12,7 +12,6 @@ const CHUNK_SIZE: usize = 10 * 1024 * 1024; // 5 MB
 const HMAC_LENGTH: usize = 32;  // HMAC length (in bytes)
 
 type Aes128Cbc = Cbc<Aes128, Pkcs7>;
-type Aes256Cbc = Cbc<Aes256, Pkcs7>;
 
 pub fn encrypt_file_path(file_path: &str, output_path: &str, password: &str) -> std::io::Result<()> {
     let key_data = generate_key_iv();
@@ -108,7 +107,7 @@ pub fn decrypt_file_path(file_path: &str, output_path: &str, password: &str) -> 
     }
 
     // Decrypt the file data
-    let cipher = Aes256Cbc::new_from_slices(&key_data.key, &key_data.iv).expect("Error creating cipher");
+    let cipher = Aes128Cbc::new_from_slices(&key_data.key, &key_data.iv).expect("Error creating cipher");
     let decrypted_data = cipher.decrypt_vec(encrypted_data).map_err(|_| {
         std::io::Error::new(std::io::ErrorKind::InvalidData, "Decryption failed")
     })?;

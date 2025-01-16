@@ -1,16 +1,16 @@
-use crate::encryption::encrypt_file;
+use crate::encryption::{encrypt_file_path};
 use crate::key_management::generate_key_iv;
 use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::path::Path;
 
 pub fn store_file(
-    file_data: &[u8],
+    file_path: &str,
     node_storage_path: &str,
     file_name: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let key_data = generate_key_iv();
-    let encrypted_data = encrypt_file(file_data, &key_data.key, &key_data.iv)?;
+    let encrypted_data = encrypt_file_data(&file_path, &key_data.key, &key_data.iv)?;
 
     // Check if the directory exists before creating the file path
     let dir_path = Path::new(node_storage_path);
@@ -31,6 +31,7 @@ pub fn can_store_file(
     file_size: u64,
 ) -> Result<bool, Box<dyn std::error::Error>> {
     let storage_dir = Path::new(node_storage_path);
+    println!("Storage directory: {:?}", storage_dir);
 
     // If the directory does not exist, a new file will be created
     if !storage_dir.exists() {
@@ -46,7 +47,10 @@ pub fn can_store_file(
         .sum::<u64>();
 
     // Node capacity (example: 5MB)
-    let max_capacity = 5 * 1024 * 1024; // 5MB
+    let max_capacity = 500 * 1024 * 1024; // 500MB
+    println!("Total used storage: {}", total_used);
+    println!("File size: {}", file_size);
+    println!("Max capacity: {}", max_capacity);
 
     // The total of current storage usage and new file size should not exceed the capacity
     Ok(total_used + file_size <= max_capacity)

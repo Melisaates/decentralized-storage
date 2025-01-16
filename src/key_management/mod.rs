@@ -42,6 +42,9 @@ pub fn encrypt_key_data(key_data: &KeyData, encryption_key: &[u8; 32]) -> Vec<u8
     let cipher = Aes256Cbc::new_from_slices(encryption_key, &key_data.iv).unwrap();
     let encrypted_key = cipher.encrypt_vec(&key_data.key);
     // Combine IV and encrypted data into a single vector
+
+    println!("key_dataive: {:?}", key_data.iv);
+    println!("key_datakeey: {:?}", key_data.key);
     let mut result = Vec::new();
     result.extend_from_slice(&key_data.iv); // Prepend IV to encrypted data
     result.extend_from_slice(&encrypted_key);
@@ -65,6 +68,8 @@ pub fn decrypt_key_data(encrypted_key: &[u8], encryption_key: &[u8; 32]) -> KeyD
     let cipher = Aes256Cbc::new_from_slices(encryption_key, iv)
         .expect("Cipher initialization failed");
 
+        println!("key_dataiv:d {:?}", iv);
+    println!("key_datakey:d {:?}", encrypted_key_data);
     let decrypted_key = cipher.decrypt_vec(encrypted_key_data)
         .expect("Decryption failed");
 
