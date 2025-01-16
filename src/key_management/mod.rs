@@ -1,5 +1,5 @@
 use std::fs::{File, OpenOptions};
-use std::io::{Write, Read};
+use std::io::{self, ErrorKind, Read, Write};
 use rand::Rng;
 use serde::{Serialize, Deserialize};
 use aes::{Aes256, BlockCipher};
@@ -10,6 +10,7 @@ use sha2::{Sha256, Digest}; // For key derivation
 type Aes256Cbc = Cbc<Aes256, Pkcs7>;
 
 #[derive(Serialize, Deserialize, Clone)]
+#[derive(Debug)]
 pub struct KeyData {
     pub key: [u8; 16],
     pub iv: [u8; 16],
@@ -39,18 +40,51 @@ pub fn generate_key_iv() -> KeyData {
 // Key encrypted with the encryption key and IV
 pub fn encrypt_key_data(key_data: &KeyData, encryption_key: &[u8; 32]) -> Vec<u8> {
     let cipher = Aes256Cbc::new_from_slices(encryption_key, &key_data.iv).unwrap();
-    cipher.encrypt_vec(&key_data.key)
+    let encrypted_key = cipher.encrypt_vec(&key_data.key);
+    // Combine IV and encrypted data into a single vector
+    let mut result = Vec::new();
+    result.extend_from_slice(&key_data.iv); // Prepend IV to encrypted data
+    result.extend_from_slice(&encrypted_key);
+    result
 }
 
-// Decrypt the encrypted key
-pub fn decrypt_key_data(encrypted_key: &[u8], encryption_key: &[u8; 32], iv: &[u8; 16]) -> KeyData {
-    let cipher = Aes256Cbc::new_from_slices(encryption_key, iv).unwrap();
-    let decrypted_key = cipher.decrypt_vec(encrypted_key).unwrap();
+pub fn decrypt_key_data(encrypted_key: &[u8], encryption_key: &[u8; 32]) -> KeyData {
+    println!("-------------------");
+    println!("Encrypted key: {:?}", encrypted_key);
+    println!("Encryption key: {:?}", encryption_key);
+    println!("-------------------");
+
+    // Extract IV from the first 16 bytes
+    let iv: &[u8; 16] = encrypted_key[0..16].try_into().expect("Invalid IV length");
+    let encrypted_key_data = &encrypted_key[16..];
+
+    println!("IV: {:?}", iv);
+    println!("Encrypted key data: {:?}", encrypted_key_data);
+
+    // Decrypting the key data
+    let cipher = Aes256Cbc::new_from_slices(encryption_key, iv)
+        .expect("Cipher initialization failed");
+
+    let decrypted_key = cipher.decrypt_vec(encrypted_key_data)
+        .expect("Decryption failed");
+
+    println!("Decrypted Key: {:?}", decrypted_key);
+    println!("Decrypted key length: {}", decrypted_key.len());
+
+    // Ensure the decrypted key is the correct size
+    if decrypted_key.len() != 16 {
+        panic!("Decrypted key has an unexpected size: {}", decrypted_key.len());
+    }
+
+    // Return KeyData struct with decrypted key and IV
     KeyData {
-        key: decrypted_key.try_into().unwrap(),
-        iv: iv.to_vec().try_into().unwrap(),
+        key: decrypted_key.try_into().expect("Failed to convert decrypted key to KeyData"),
+        iv: iv.clone(),  // Use the same IV
     }
 }
+
+
+
 
 // Save the encrypted key to a file
 pub fn save_encrypted_key(file_path: &str, encrypted_key: &[u8]) -> std::io::Result<()> {
@@ -67,18 +101,31 @@ pub fn load_encrypted_key(file_path: &str) -> std::io::Result<Vec<u8>> {
     Ok(encrypted_key)
 }
 
-// Decrypt the encrypted key and retrieve the file content
 pub fn load_and_decrypt_key(file_path: &str, password: &str) -> std::io::Result<KeyData> {
     let encrypted_key = load_encrypted_key(file_path)?;
+    println!("Encrypted key: {:?}", encrypted_key);
+    println!("Encrypted key length: {}", encrypted_key.len());
+
+    // Decrypt the key
     let encryption_key = derive_key(password);
-    let iv: &[u8; 16] = encrypted_key[0..16].try_into().expect("slice with incorrect length");
-    let key_data = decrypt_key_data(&encrypted_key[16..], &encryption_key, iv);
+    println!("Encryption key: {:?}", encryption_key);
+    let key_data = decrypt_key_data(&encrypted_key, &encryption_key);
+
+    println!("Decrypted KeyData: {:?}", key_data);
     Ok(key_data)
 }
 
 // To store the key locally
 pub fn save_key_locally(file_path: &str, key_data: &KeyData, password: &str) -> std::io::Result<()> {
     let encryption_key = derive_key(password);
+    println!("++++++++++++++");
+    println!("Encryption key: {:?}", encryption_key);
+    println!("KeyData: {:?}", key_data);
+    println!("KeyData key: {:?}", key_data.key);
+    println!("KeyData iv: {:?}", key_data.iv);
+    println!("++++++++++++++");
+
     let encrypted_key = encrypt_key_data(key_data, &encryption_key);
+    println!("Encrypted key: {:?}", encrypted_key);
     save_encrypted_key(file_path, &encrypted_key)
 }

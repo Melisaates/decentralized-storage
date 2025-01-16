@@ -14,7 +14,6 @@ const HMAC_LENGTH: usize = 32;  // HMAC length (in bytes)
 type Aes128Cbc = Cbc<Aes128, Pkcs7>;
 type Aes256Cbc = Cbc<Aes256, Pkcs7>;
 
-
 pub fn encrypt_file_path(file_path: &str, output_path: &str, password: &str) -> std::io::Result<()> {
     let key_data = generate_key_iv();
     let encryption_key = derive_key(password); // Kullanıcı şifresi ile anahtar türet
@@ -23,8 +22,11 @@ pub fn encrypt_file_path(file_path: &str, output_path: &str, password: &str) -> 
     // Merkezi servise anahtarı saklama (bu, örneğin dosya veya veritabanı olabilir)
     save_encrypted_key("encrypted_key_file", &encrypted_key)?;
 
+    println!("Key data: {:?}", key_data);
+    println!("keyiv lennnnnn: {:?}", key_data.iv.len());
     // Dosyayı şifrele
-    let cipher = Aes256Cbc::new_from_slices(&key_data.key, &key_data.iv).unwrap();
+    // AES-256 için anahtar 32 byte ve IV 16 byte
+    let cipher = Aes128Cbc::new_from_slices(&key_data.key, &key_data.iv).unwrap();  // Bu doğru şekilde çalışmalıdır
     let mut file = File::open(file_path)?;
     let mut data = Vec::new();
     file.read_to_end(&mut data)?;
@@ -43,8 +45,6 @@ pub fn encrypt_file_path(file_path: &str, output_path: &str, password: &str) -> 
 
     Ok(())
 }
-
-
 
 
 

@@ -1,17 +1,118 @@
 mod p2p;
 use encryption::{decrypt_file_path, encrypt_file_path};
-use futures::future::ok;
-use key_management::{generate_key_iv, save_key_locally};
-use p2p::{find_available_node, Network};  // P2P ağına bağlanmak için
+use key_management::{generate_key_iv, load_and_decrypt_key, save_key_locally};
+use p2p::{find_available_node, Network, Node};
+use storage::{can_store_file, store_file};  // P2P ağına bağlanmak için
 //mod blockchain;
 // use blockchain::{BscClient};  // Binance Smart Chain ile iletişim
-use ethers::types::Address;
 mod storage;
 mod encryption;
 mod key_management;
+use std::fs::File;
+use std::io::Read;
+use std::net::SocketAddr;
+use tokio::task;
+mod proof_of_spacetime;
+use proof_of_spacetime::periodic_check;
+
+
+
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() {
+    // 1. P2P ağı başlat
+    let network = Network::new();
+    let server_address: SocketAddr = "127.0.0.1:8080".parse().unwrap();
+    // Add a sample node
+    let node = Node {
+        id: "node_1".to_string(),
+        storage_path: "/data/node_1".to_string(),
+        available_space: 10000,
+    };
+
+    network.add_node(node).await;
+
+    let node1 = Node {
+        id: "node_2".to_string(),
+        storage_path: "/data/node_2".to_string(),
+        available_space: 10000000,
+    };
+
+    network.add_node(node1).await;
+
+    // P2P sunucusunu arka planda çalıştır
+    task::spawn(async move {
+        network.start_server(server_address).await.unwrap();
+    });
+
+    // 2. Depolama sistemini başlat
+    let storage_path = "storage/";
+
+    // 3. Şifreleme için anahtar oluştur ve sakla
+    let key_file_path = "keys/key_data.json";
+    let password = "456"; // Anahtar için bir parola belirlenir
+    //let key_data = generate_key_iv();
+    //save_key_locally(key_file_path, &key_data, password).expect("Anahtar kaydedilemedi!");
+
+    // println!("Anahtar başarıyla oluşturuldu ve kaydedildi!");
+    // println!("Anahtar: {:?}", key_data);
+    // println!("***************");
+
+    // 4. Anahtarı geri yükle ve doğrula
+    let loaded_key_data = load_and_decrypt_key(key_file_path, password)
+        .expect("Anahtar geri yüklenemedi!");
+    println!("Anahtar başarıyla yüklendi: {:?}", loaded_key_data);
+
+    // 5. Dosya boyutunu otomatik hesapla ve depolama alanını kontrol et
+    let file_path = "C:/Users/melisates/Downloads/1. Algorithms and Computation.mp4";
+    let file_name = "algorithms.mp4";
+    let file_data = read_file(file_path).expect("Dosya okunamadı!");
+    let file_size = file_data.len() as u64; // Dosya boyutu byte cinsinden hesaplanır.
+
+    if let Ok(true) = can_store_file(storage_path, file_size) {
+        // 6. Dosyayı şifrele
+        let encrypted_file_path = "storage/encrypted_wp.jpg";
+        encrypt_file_path(file_path, encrypted_file_path, password)
+            .expect("Dosya şifrelenemedi!");
+        println!("Dosya başarıyla şifrelendi: {}", encrypted_file_path);
+
+        // 7. Şifrelenmiş dosyayı depola
+        let encrypted_file_data = read_file(encrypted_file_path).expect("Şifreli dosya okunamadı!");
+        store_file(&encrypted_file_data, storage_path, file_name).expect("Dosya kaydedilemedi!");
+        println!("Şifrelenmiş dosya depolama alanına kaydedildi: {}", file_name);
+    } else {
+        println!("Yeterli depolama alanı yok!");
+    }
+
+    // 8. Proof-of-Spacetime mekanizmasını çalıştır
+    let cloned_storage_path = storage_path.to_string();
+    task::spawn(async move {
+        periodic_check(&cloned_storage_path).await;
+    });
+
+    // Uygulama sürekli çalışsın
+    loop {
+        tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
+    }
+}
+
+/// Bir dosyayı okuyup byte dizisi olarak döndüren yardımcı fonksiyon
+fn read_file(file_path: &str) -> Result<Vec<u8>, std::io::Error> {
+    let mut file = File::open(file_path)?;
+    let mut buffer = Vec::new();
+    file.read_to_end(&mut buffer)?;
+    Ok(buffer)
+}
+
+
+
+
+
+
+
+
+
+
 
 //     // Binance Smart Chain istemcisi başlat
 //     let client = BscClient::new().await?;
