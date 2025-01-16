@@ -5,25 +5,30 @@ use std::fs::File;
 use std::io::{Read, Seek, Write};
 use tokio::time::{sleep, Duration as TokioDuration};
 
-const CHALLENGE_TIMEOUT: Duration = Duration::new(20 * 60, 0);  // 20 dakika
+const CHALLENGE_TIMEOUT: Duration = Duration::new(20 * 60, 0);  // 20 minutes
 
-// Rastgele kelime üretir.
+// Generates a random word.
 fn generate_random_challenge() -> String {
-    let mut rng = thread_rng();
+    let mut range = thread_rng();
+    
+    // Generates a random word of 10 characters
+    // b is used to convert byte to char
     let challenge_word: String = (0..10)
-        .map(|_| rng.gen_range(b'a'..=b'z') as char)
+        .map(|_| range.gen_range(b'a'..=b'z') as char)
         .collect();
     challenge_word
 }
 
-// Dosyanın rastgele bir parçasını okur.
+// Reads a random part of the file.
 fn get_random_file_part(file_path: &str, byte_count: usize) -> Result<Vec<u8>, std::io::Error> {
+
     let mut file = File::open(file_path)?;
-    let mut rng = thread_rng();
+    // Generates a random number.
+    let mut range = thread_rng();
     let file_size = std::fs::metadata(file_path)?.len() as usize;
     
-    // Dosyanın rastgele bir yerinden başlar.
-    let start_byte = rng.gen_range(0..file_size - byte_count);
+    // Starts from a random position in the file.
+    let start_byte = range.gen_range(0..file_size - byte_count);
     let mut buffer = vec![0; byte_count];
     file.seek(std::io::SeekFrom::Start(start_byte as u64))?;
     file.read_exact(&mut buffer)?;
@@ -31,46 +36,47 @@ fn get_random_file_part(file_path: &str, byte_count: usize) -> Result<Vec<u8>, s
     Ok(buffer)
 }
 
-// Hash işlemi yapar.
+// Performs the hash operation.
 fn generate_hash(file_part: &[u8], challenge_word: &str) -> Vec<u8> {
     let mut hasher = Sha256::new();
     hasher.update(file_part);
     hasher.update(challenge_word.as_bytes());
+
     hasher.finalize().to_vec()
 }
 
-// Challenge işlemine yanıt veren fonksiyon.
+// Function that responds to the challenge.
 fn respond_to_challenge(file_path: &str) -> Result<Vec<u8>, String> {
     let challenge_word = generate_random_challenge();
     println!("Challenge Word: {}", challenge_word);
     
-    // Dosyanın rastgele bir parçasını alır.
+    // Gets a random part of the file.
     let file_part = match get_random_file_part(file_path, 100) {
         Ok(part) => part,
-        Err(_) => return Err("Dosyadan veri alınamadı!".to_string()),
+        Err(_) => return Err("Failed to read data from file!".to_string()),
     };
 
-    // Hash'i oluştur
+    // Generates the hash
     let response_hash = generate_hash(&file_part, &challenge_word);
     println!("Generated Hash: {:?}", response_hash);
     
-    // Bu hash validator'a geri gönderilecek
+    // This hash will be sent back to the validator
     Ok(response_hash)
 }
 
-// Challenge işlemi ve zaman denetimi
+// Challenge process and time check
 fn proof_of_spacetime(file_path: &str) {
     let start_time = SystemTime::now();
 
-    // Challenge'a yanıt al
+    // Get response to the challenge
     match respond_to_challenge(file_path) {
         Ok(response_hash) => {
             let elapsed = SystemTime::now().duration_since(start_time).unwrap();
             if elapsed <= CHALLENGE_TIMEOUT {
-                // Zamanında cevap verildiyse, doğrulama başarılı
+                // If responded in time, validation is successful
                 println!("Challenge passed! Hash: {:?}", response_hash);
             } else {
-                println!("Challenge failed: Zaman aşımı.");
+                println!("Challenge failed: Timeout.");
             }
         }
         Err(err) => {
@@ -79,21 +85,17 @@ fn proof_of_spacetime(file_path: &str) {
     }
 }
 
-// Periyodik olarak proof_of_spacetime çağrısı yapan fonksiyon
+// Function that periodically calls proof_of_spacetime
 #[tokio::main]
 pub async fn periodic_check(file_path: &str) {
     loop {
         proof_of_spacetime(file_path);
-        sleep(TokioDuration::from_secs(30)).await;  // 1 saatlik bekleme
+        sleep(TokioDuration::from_secs(30)).await;  // 30 seconds wait
     }
 }
 
 // fn main() {
-//     // Dosya yolunu ver ve periyodik challenge doğrulamasını başlat
-//     let file_path = "path/to/storage/encrypted_file.dat";  // Dosya yolu
-//     periodic_check(file_path);  // Periyodik kontrol başlatılır
+//     // Provide the file path and start periodic challenge validation
+//     let file_path = "path/to/storage/encrypted_file.dat";  // File path
+//     periodic_check(file_path);  // Start periodic check
 // }
-
-
-
-

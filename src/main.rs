@@ -121,45 +121,45 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 
 //try to encrypt and decrypt a file
-    let file_path = "C:/Users/melisates/Downloads/1. Algorithms and Computation.mp4";
-    //"C:\Users\melisates\Downloads\1. Algorithms and Computation.mp4"
-    //Documents/WhatsApp Video 2024-11-03 at 18.47.50_f9c56fbd.mp4
-    //WhatsApp Image 2024-12-01 at 14.40.49_48a551a2.jpg
-    let encrypted_file_path = "C:/Users/melisates/Documents/encrypted_fileeee.mp4";
-    let decrypted_file_path = "C:/Users/melisates/Documents/decrypted_fileee.mp4";
-    let key_file_path = "C:/Users/melisates/Documents/key_data.mp4";
+//     let file_path = "C:/Users/melisates/Downloads/1. Algorithms and Computation.mp4";
+//     //"C:\Users\melisates\Downloads\1. Algorithms and Computation.mp4"
+//     //Documents/WhatsApp Video 2024-11-03 at 18.47.50_f9c56fbd.mp4
+//     //WhatsApp Image 2024-12-01 at 14.40.49_48a551a2.jpg
+//     let encrypted_file_path = "C:/Users/melisates/Documents/encrypted_fileeee.mp4";
+//     let decrypted_file_path = "C:/Users/melisates/Documents/decrypted_fileee.mp4";
+//     let key_file_path = "C:/Users/melisates/Documents/key_data.mp4";
 
-    println!("Şifrelenmiş dosya boyutu: {}", std::fs::metadata(encrypted_file_path)?.len());
-println!("Şifre çözülmeden önce dosya boyutu: {}", std::fs::metadata(decrypted_file_path)?.len());
-
-
-    // 1. Anahtar ve IV oluştur
-    let key_data = generate_key_iv();
-    println!("Key_: {:?}", key_data.key);
-println!("IV_: {:?}", key_data.iv);
-
-    // 2. Şifreleme anahtarı ve IV'yi kullanıcıya kaydedilecek şekilde JSON olarak kaydet
-    save_key_locally(key_file_path, &key_data)?;
-    println!("Anahtar ve IV kullanıcıya kaydedildi: {}", key_file_path);
-
-    // 3. Dosyayı şifrele
-    encrypt_file_path(file_path, encrypted_file_path, &key_data.key, &key_data.iv)?;
-    println!("Dosya başarıyla şifrelendi: {}", encrypted_file_path);
-
-    // 4. Dosyanın şifresini çöz
-    decrypt_file_path(
-        encrypted_file_path,
-        decrypted_file_path,
-        &key_data.key,
-        &key_data.iv,
-    )?;
-    println!("Dosya başarıyla çözüldü: {}", decrypted_file_path);
-
-    println!("çözülmüş dosya boyutu: {}", std::fs::metadata(decrypted_file_path)?.len());
+//     println!("Şifrelenmiş dosya boyutu: {}", std::fs::metadata(encrypted_file_path)?.len());
+// println!("Şifre çözülmeden önce dosya boyutu: {}", std::fs::metadata(decrypted_file_path)?.len());
 
 
-Ok(())
-}
+//     // 1. Anahtar ve IV oluştur
+//     let key_data = generate_key_iv();
+//     println!("Key_: {:?}", key_data.key);
+// println!("IV_: {:?}", key_data.iv);
+
+//     // 2. Şifreleme anahtarı ve IV'yi kullanıcıya kaydedilecek şekilde JSON olarak kaydet
+//     save_key_locally(key_file_path, &key_data)?;
+//     println!("Anahtar ve IV kullanıcıya kaydedildi: {}", key_file_path);
+
+//     // 3. Dosyayı şifrele
+//     encrypt_file_path(file_path, encrypted_file_path, &key_data.key, &key_data.iv)?;
+//     println!("Dosya başarıyla şifrelendi: {}", encrypted_file_path);
+
+//     // 4. Dosyanın şifresini çöz
+//     decrypt_file_path(
+//         encrypted_file_path,
+//         decrypted_file_path,
+//         &key_data.key,
+//         &key_data.iv,
+//     )?;
+//     println!("Dosya başarıyla çözüldü: {}", decrypted_file_path);
+
+//     println!("çözülmüş dosya boyutu: {}", std::fs::metadata(decrypted_file_path)?.len());
+
+
+// Ok(())
+// }
 
 
 

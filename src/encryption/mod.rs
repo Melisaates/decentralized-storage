@@ -6,6 +6,8 @@ use std::io::{self, Read, Write, Seek, SeekFrom};use hmac::{Hmac, Mac, NewMac};
 use sha2::Sha256;
 use hex::{encode};
 
+use crate::key_management::{derive_key, encrypt_key_data, generate_key_iv, load_and_decrypt_key, save_encrypted_key};
+
 const CHUNK_SIZE: usize = 10 * 1024 * 1024; // 5 MB
 const HMAC_LENGTH: usize = 32;  // HMAC length (in bytes)
 
@@ -13,27 +15,35 @@ type Aes128Cbc = Cbc<Aes128, Pkcs7>;
 type Aes256Cbc = Cbc<Aes256, Pkcs7>;
 
 
-pub fn encrypt_file_path(file_path: &str, output_path: &str, key: &[u8; 16], iv: &[u8; 16]) -> std::io::Result<()> {
+pub fn encrypt_file_path(file_path: &str, output_path: &str, password: &str) -> std::io::Result<()> {
+    let key_data = generate_key_iv();
+    let encryption_key = derive_key(password); // Kullanıcı şifresi ile anahtar türet
+    let encrypted_key = encrypt_key_data(&key_data, &encryption_key);
+    
+    // Merkezi servise anahtarı saklama (bu, örneğin dosya veya veritabanı olabilir)
+    save_encrypted_key("encrypted_key_file", &encrypted_key)?;
+
+    // Dosyayı şifrele
+    let cipher = Aes256Cbc::new_from_slices(&key_data.key, &key_data.iv).unwrap();
     let mut file = File::open(file_path)?;
     let mut data = Vec::new();
     file.read_to_end(&mut data)?;
 
-    let cipher = Aes128Cbc::new_from_slices(key, iv).expect("Error creating cipher");
     let encrypted_data = cipher.encrypt_vec(&data);
 
     // HMAC hesaplama
-    let mut hmac = Hmac::<Sha256>::new_from_slice(key).expect("HMAC can take key of any size");
+    let mut hmac = Hmac::<Sha256>::new_from_slice(&key_data.key).expect("HMAC can take key of any size");
     hmac.update(&encrypted_data);
     let hmac_result = hmac.finalize().into_bytes();
 
     // Şifreli veriyi ve HMAC'ı dosyaya yazma
     let mut output_file = File::create(output_path)?;
     output_file.write_all(&encrypted_data)?;
-
     output_file.write_all(&hmac_result)?;
 
     Ok(())
 }
+
 
 
 
@@ -68,44 +78,42 @@ pub fn encrypt_file_path_with_chunk(file_path: &str, output_path: &str, key: &[u
 }
 
 
-pub fn decrypt_file_path(file_path: &str, output_path: &str, key: &[u8; 16], iv: &[u8; 16]) -> std::io::Result<()> {
+
+// Decrypt the file with key from the key manager
+pub fn decrypt_file_path(file_path: &str, output_path: &str, password: &str) -> std::io::Result<()> {
+    // Load and decrypt the key using the password
+    let key_data = load_and_decrypt_key(file_path, password)?;
+
     let mut file = File::open(file_path)?;
     let mut encrypted_data = Vec::new();
     file.read_to_end(&mut encrypted_data)?;
 
-    // HMAC'ı kontrol etme
+    // HMAC check (we assume the HMAC is stored at the end of the file)
     if encrypted_data.len() < 32 {
         return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "Data too short to contain HMAC"));
     }
 
-    // HMAC'ı ve şifreli veriyi ayırma
-    // HMAC, verinin son 32 byte'ıdır
-    // Veri, HMAC'den önceki kısımdır
     let hmac_offset = encrypted_data.len() - 32;
     let hmac_received = &encrypted_data[hmac_offset..];
     let encrypted_data = &encrypted_data[..hmac_offset];
 
-    println!("Received HMAC: {:?}", hmac_received);
-
-    // HMAC'ı hesaplama
-    let mut hmac = Hmac::<Sha256>::new_from_slice(key).expect("HMAC can take key of any size");
+    // Compute HMAC
+    let mut hmac = Hmac::<Sha256>::new_from_slice(&key_data.key).expect("HMAC can take key of any size");
     hmac.update(encrypted_data);
     let hmac_calculated = hmac.finalize().into_bytes();
 
-    println!("Calculated HMAC: {:?}", hmac_calculated);
-
-    // HMAC doğrulama
+    // HMAC verification
     if hmac_received != hmac_calculated.as_slice() {
         return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "HMAC mismatch: Data is corrupted"));
     }
 
-    // Şifreyi çözme
-    let cipher = Aes128Cbc::new_from_slices(key, iv).expect("Error creating cipher");
+    // Decrypt the file data
+    let cipher = Aes256Cbc::new_from_slices(&key_data.key, &key_data.iv).expect("Error creating cipher");
     let decrypted_data = cipher.decrypt_vec(encrypted_data).map_err(|_| {
         std::io::Error::new(std::io::ErrorKind::InvalidData, "Decryption failed")
     })?;
 
-    // Çözülmüş veriyi dosyaya yazma
+    // Write the decrypted data to the output file
     let mut output_file = File::create(output_path)?;
     output_file.write_all(&decrypted_data)?;
 
