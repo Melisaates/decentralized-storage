@@ -7,7 +7,7 @@ use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
 use serde::{Deserialize, Serialize};
 use ethers::types::Address;
 
-#[derive(Clone, Serialize, Deserialize,Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Node {
     pub id: String,
     pub storage_path: String, // Storage path
@@ -79,39 +79,8 @@ impl Network {
     
 }
 
+// Function to find a node with enough available space for a file
 pub fn find_available_node(file_size: u64, nodes: &[Node]) -> Option<Node> {
     nodes.iter().find(|&node| node.available_space >= file_size).cloned()
 }
 
-/*#[tokio::main]
-async fn main() -> io::Result<()> {
-    let network = Network::new();
-    let server_addr: SocketAddr = "127.0.0.1:8080".parse().unwrap();
-
-    // Start the server
-    tokio::spawn(async move {
-        if let Err(e) = network.start_server(server_addr).await {
-            eprintln!("Server error: {:?}", e);
-        }
-    });
-
-    // Add a sample node
-    let node = Node {
-        id: "node_1".to_string(),
-        storage_path: "/data/node_1".to_string(),
-        available_space: 5000,
-    };
-
-    network.add_node(node).await;
-
-    // Get the nodes in the network and find a suitable node
-    let nodes = network.get_nodes().await;
-    if let Some(available_node) = find_available_node(2000, &nodes) {
-        println!("Available Node: {:?}", available_node);
-    } else {
-        println!("No suitable node found");
-    }
-
-    Ok(())
-}
- */

@@ -11,16 +11,22 @@ mod storage;
 use std::fs::File;
 use std::io::Read;
 use std::net::SocketAddr;
+use std::process;
+use std::sync::Arc;
 use tokio::task;
 mod proof_of_spacetime;
 use proof_of_spacetime::periodic_check;
 
+
 #[tokio::main]
 async fn main() {
     // 1. P2P ağı başlat
-    let network = Network::new();
-    let server_address: SocketAddr = "127.0.0.1:8080".parse().unwrap();
-    // Add a sample node
+    let network = Arc::new(Network::new());
+    let server_address: SocketAddr = "127.0.0.1:8080".parse().unwrap_or_else(|e| {
+        eprintln!("Geçersiz adres: {:?}", e);
+        process::exit(1);
+    });
+        // Add a sample node
     let node = Node {
         id: "node_1".to_string(),
         storage_path: "/data/node_1".to_string(),
@@ -29,28 +35,24 @@ async fn main() {
 
     network.add_node(node).await;
 
-    let node1 = Node {
-        id: "node_2".to_string(),
-        storage_path: "/data/node_2".to_string(),
-        available_space: 50000000000000,
+    let node3 = Node {
+        id: "node_8".to_string(),
+        storage_path: "/data/node_8".to_string(),
+        available_space: 800000000000
     };
 
-    network.add_node(node1).await;
+    network.add_node(node3).await;
 
-    let node2 = Node {
-        id: "node_3".to_string(),
-        storage_path: "/data/node_3".to_string(),
-        available_space: 50000000000000,
-    };
+    println!("Node'lar başarıyla eklendi!");
+    println!("{:?}", network.get_nodes().await);
 
-    network.add_node(node2).await;
 
     
-    println!("networkkk: {:?}", network.get_nodes().await);
-
-    // P2P sunucusunu arka planda çalıştır
-    task::spawn(async move {
-        network.start_server(server_address).await.unwrap();
+    let network_clone = Arc::clone(&network);
+    tokio::spawn(async move {
+        if let Err(e) = network_clone.start_server(server_address).await {
+            eprintln!("Server error: {:?}", e);
+        }
     });
 
     // 2. Depolama sistemini başlat
@@ -58,7 +60,7 @@ async fn main() {
 
     // 3. Şifreleme için anahtar oluştur ve sakla
     let key_file_path = "keys/key_data.json";
-    let password = "456"; // Anahtar için bir parola belirlenir
+    let password = "128"; // Anahtar için bir parola belirlenir
                           //let key_data = generate_key_iv();
                           //save_key_locally(key_file_path, &key_data, password).expect("Anahtar kaydedilemedi!");
 
@@ -66,20 +68,34 @@ async fn main() {
     // println!("Anahtar: {:?}", key_data);
     // println!("***************");
 
-     // 4. Anahtarı geri yükle ve doğrula
-    // let loaded_key_data =
-    // load_and_decrypt_key(key_file_path, password).expect("Anahtar geri yüklenemedi!");
-    // println!("Anahtar başarıyla yüklendi: {:?}", loaded_key_data);
-    // println!("***************");
     // 5. Dosya boyutunu otomatik hesapla ve depolama alanını kontrol et
-    let file_path = "C:/Users/melisates/Downloads/1. Algorithms and Computation.mp4";
-    let file_name = "algorithms.mp4";
+    let file_path = "C:/Users/melisates//Documents/WhatsApp Video 2024-11-03 at 18.47.50_f9c56fbd.mp4";
+    let file_name = "wp.mp4";
     let file_data = read_file(file_path).expect("Dosya okunamadı!");
     let file_size = file_data.len() as u64; // Dosya boyutu byte cinsinden hesaplanır.
+// Ağdaki düğümleri al ve uygun bir düğüm bul
+let nodes = network.get_nodes().await; // Artık erişilebilir
+if let Some(available_node) = find_available_node(2000, &nodes) {
+    println!("Available Node: {:?}", available_node);
+} else {
+    println!("No suitable node found");
+}
 
-    if let Ok(true) = can_store_file(storage_path, file_size) {
-       
-        store_file(&file_data, storage_path, file_name).expect("Dosya kaydedilemedi!");
+// Dosyayı depolayabilecek bir düğüm var mı kontrol et
+if let Some(node_id) = can_store_file(&nodes, file_size).await {
+        // 6. Dosyayı şifrele
+        let encrypted_file_path = "C:/Users/melisates/Documents/encryptedwp_file.mp4";
+        encrypt_file_path(file_path, encrypted_file_path, password).expect("Dosya şifrelenemedi!");
+        println!("Dosya başarıyla şifrelendi: {}", encrypted_file_path);
+
+        // 7. Şifrelenmiş dosyayı depola
+        let encrypted_file_data = read_file(encrypted_file_path).expect("Şifreli dosya okunamadı!");
+        // // 4. Anahtarı geri yükle ve doğrula
+        // let loaded_key_data =
+        //     load_and_decrypt_key(key_file_path, password).expect("Anahtar geri yüklenemedi!");
+        // println!("Anahtar başarıyla yüklendi: {:?}", loaded_key_data);
+
+        store_file(&encrypted_file_data, storage_path, file_name).expect("Dosya kaydedilemedi!");
         println!(
             "Şifrelenmiş dosya depolama alanına kaydedildi: {}",
             file_name

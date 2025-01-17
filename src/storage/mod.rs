@@ -1,57 +1,99 @@
-use crate::encryption::{encrypt_file_path};
+use pkcs7::encrypted_data_content;
+
+use crate::encryption::encrypt_file;
 use crate::key_management::generate_key_iv;
+use crate::p2p::Node;
 use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::path::Path;
 
 pub fn store_file(
-    file_path: &str,
+    encrypted_data_content: &[u8],
     node_storage_path: &str,
     file_name: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let key_data = generate_key_iv();
-    let encrypted_data = encrypt_file_data(&file_path, &key_data.key, &key_data.iv)?;
-
-    // Check if the directory exists before creating the file path
-    let dir_path = Path::new(node_storage_path);
-    if !dir_path.exists() {
-        // Create the directory if it does not exist
-        fs::create_dir_all(dir_path)?;
+    // Check for empty parameters
+    if node_storage_path.is_empty() || file_name.is_empty() {
+        return Err("Storage path or file name cannot be empty.".into());
     }
 
-    let file_path = format!("{}/{}", node_storage_path, file_name);
-    let mut file = File::create(file_path)?;
-    file.write_all(&encrypted_data)?;
+    // Create the directory path if it doesn't exist
+    let dir_path = Path::new(node_storage_path);
+    if !dir_path.exists() {
+        fs::create_dir_all(&dir_path).map_err(|e| {
+            format!(
+                "Failed to create directory {}: {}",
+                dir_path.display(),
+                e
+            )
+        })?;
+    }
+
+    // Use Path manipulation for file path
+    let file_path = dir_path.join(file_name);
+    let mut file = File::create(&file_path).map_err(|e| {
+        format!(
+            "Failed to create file {}: {}",
+            file_path.display(),
+            e
+        )
+    })?;
+
+    // Write the encrypted data to the file
+    file.write_all(encrypted_data_content).map_err(|e| {
+        format!(
+            "Failed to write data to file {}: {}",
+            file_path.display(),
+            e
+        )
+    })?;
+
+    // Ensure the file is fully written to disk
+    file.sync_all().map_err(|e| {
+        format!(
+            "Failed to sync data to file {}: {}",
+            file_path.display(),
+            e
+        )
+    })?;
+
+    println!("File successfully stored at {}", file_path.display());
 
     Ok(())
 }
 
-pub fn can_store_file(
-    node_storage_path: &str,
-    file_size: u64,
-) -> Result<bool, Box<dyn std::error::Error>> {
-    let storage_dir = Path::new(node_storage_path);
-    println!("Storage directory: {:?}", storage_dir);
 
-    // If the directory does not exist, a new file will be created
-    if !storage_dir.exists() {
-        fs::create_dir_all(storage_dir)?;
+pub async fn can_store_file(
+    nodes: &Vec<Node>, // Tüm düğümleri içeren liste
+    file_size: u64,    // Dosya boyutu
+) -> Option<String> {  // Depolayabileceği düğümün ID'sini döndür
+    for node in nodes {
+        let storage_dir = Path::new(&node.storage_path);
+        println!("Checking storage for node: {}", node.id);
+
+        // Eğer dizin yoksa, oluştur
+        if !storage_dir.exists() {
+            fs::create_dir_all(storage_dir).ok(); // Hata oluşursa devam et
+        }
+
+        // Düğümde kullanılan toplam alanı hesapla
+        let total_used = fs::read_dir(storage_dir)
+            .unwrap_or_else(|_| fs::read_dir("/dev/null").unwrap()) // Hata oluşursa boş döner
+            .filter_map(Result::ok)
+            .map(|entry| entry.metadata())
+            .filter_map(Result::ok)
+            .map(|metadata| metadata.len())
+            .sum::<u64>();
+
+        println!(
+            "Node ID: {}, Used: {}, Available: {}, File Size: {}",
+            node.id, total_used, node.available_space, file_size
+        );
+
+        // Dosya depolanabiliyorsa düğüm ID'sini döndür
+        if total_used + file_size <= node.available_space {
+            return Some(node.id.clone());
+        }
     }
-
-    // Calculate the total size of files in the directorys
-    let total_used = fs::read_dir(storage_dir)?
-        .filter_map(Result::ok)
-        .map(|entry| entry.metadata())
-        .filter_map(Result::ok)
-        .map(|metadata| metadata.len())
-        .sum::<u64>();
-
-    // Node capacity (example: 5MB)
-    let max_capacity = 500 * 1024 * 1024; // 500MB
-    println!("Total used storage: {}", total_used);
-    println!("File size: {}", file_size);
-    println!("Max capacity: {}", max_capacity);
-
-    // The total of current storage usage and new file size should not exceed the capacity
-    Ok(total_used + file_size <= max_capacity)
+    None // Uygun düğüm bulunamadı
 }
