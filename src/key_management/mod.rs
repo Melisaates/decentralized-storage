@@ -2,7 +2,7 @@ use std::fs::{File, OpenOptions};
 use std::io::{self, ErrorKind, Read, Write};
 use rand::Rng;
 use serde::{Serialize, Deserialize};
-use aes::{Aes256, BlockCipher};
+use aes::{Aes256};
 use block_modes::{BlockMode, Cbc};
 use block_modes::block_padding::Pkcs7;
 use sha2::{Sha256, Digest}; // For key derivation

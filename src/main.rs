@@ -2,9 +2,10 @@ mod p2p;
 use encryption::{decrypt_file_path, encrypt_file_path};
 use key_management::{generate_key_iv, load_and_decrypt_key, save_key_locally};
 use p2p::{find_available_node, Network, Node};
-use storage::{can_store_file, store_file}; // P2P ağına bağlanmak için
-                                           //mod blockchain;
-                                           // use blockchain::{BscClient};  // Binance Smart Chain ile iletişim
+use storage::{can_store_file, store_file}; // To connect to the P2P network
+//mod blockchain;
+// use blockchain::{BscClient}; 
+// Communication with Binance Smart Chain
 mod encryption;
 mod key_management;
 mod storage;
@@ -17,16 +18,15 @@ use tokio::task;
 mod proof_of_spacetime;
 use proof_of_spacetime::periodic_check;
 
-
 #[tokio::main]
 async fn main() {
-    // 1. P2P ağı başlat
+    // 1. Start the P2P network
     let network = Arc::new(Network::new());
     let server_address: SocketAddr = "127.0.0.1:8080".parse().unwrap_or_else(|e| {
-        eprintln!("Geçersiz adres: {:?}", e);
+        eprintln!("Invalid address: {:?}", e);
         process::exit(1);
     });
-        // Add a sample node
+    // Add a sample node
     let node = Node {
         id: "node_1".to_string(),
         storage_path: "/data/node_1".to_string(),
@@ -38,16 +38,14 @@ async fn main() {
     let node3 = Node {
         id: "node_8".to_string(),
         storage_path: "/data/node_8".to_string(),
-        available_space: 800000000000
+        available_space: 800000000000,
     };
 
     network.add_node(node3).await;
 
-    println!("Node'lar başarıyla eklendi!");
+    println!("Nodes added successfully!");
     println!("{:?}", network.get_nodes().await);
 
-
-    
     let network_clone = Arc::clone(&network);
     tokio::spawn(async move {
         if let Err(e) = network_clone.start_server(server_address).await {
@@ -55,68 +53,69 @@ async fn main() {
         }
     });
 
-    // 2. Depolama sistemini başlat
+    // 2. Start the storage system
     let storage_path = "storage/";
 
-    // 3. Şifreleme için anahtar oluştur ve sakla
+    // 3. Generate and save a key for encryption
     let key_file_path = "keys/key_data.json";
-    let password = "128"; // Anahtar için bir parola belirlenir
+    let password = "128"; // Set a password for the key
                           //let key_data = generate_key_iv();
-                          //save_key_locally(key_file_path, &key_data, password).expect("Anahtar kaydedilemedi!");
+                          //save_key_locally(key_file_path, &key_data, password).expect("Failed to save the key!");
 
-    // println!("Anahtar başarıyla oluşturuldu ve kaydedildi!");
-    // println!("Anahtar: {:?}", key_data);
+    // println!("Key generated and saved successfully!");
+    // println!("Key: {:?}", key_data);
     // println!("***************");
 
-    // 5. Dosya boyutunu otomatik hesapla ve depolama alanını kontrol et
-    let file_path = "C:/Users/melisates//Documents/WhatsApp Video 2024-11-03 at 18.47.50_f9c56fbd.mp4";
+    // 5. Automatically calculate the file size and check the storage space
+    let file_path =
+        "C:/Users/melisates//Documents/WhatsApp Video 2024-11-03 at 18.47.50_f9c56fbd.mp4";
     let file_name = "wp.mp4";
-    let file_data = read_file(file_path).expect("Dosya okunamadı!");
-    let file_size = file_data.len() as u64; // Dosya boyutu byte cinsinden hesaplanır.
-// Ağdaki düğümleri al ve uygun bir düğüm bul
-let nodes = network.get_nodes().await; // Artık erişilebilir
-if let Some(available_node) = find_available_node(2000, &nodes) {
-    println!("Available Node: {:?}", available_node);
-} else {
-    println!("No suitable node found");
-}
+    let file_data = read_file(file_path).expect("Failed to read the file!");
+    let file_size = file_data.len() as u64; // Calculate the file size in bytes.
+                                            // Get the nodes in the network and find a suitable node
+    let nodes = network.get_nodes().await; // Now accessible
+    if let Some(available_node) = find_available_node(2000, &nodes) {
+        println!("Available Node: {:?}", available_node);
+    } else {
+        println!("No suitable node found");
+    }
 
-// Dosyayı depolayabilecek bir düğüm var mı kontrol et
-if let Some(node_id) = can_store_file(&nodes, file_size).await {
-        // 6. Dosyayı şifrele
+    // Check if there is a node that can store the file
+    if let Some(node_id) = can_store_file(&nodes, file_size).await {
+        // 6. Encrypt the file
         let encrypted_file_path = "C:/Users/melisates/Documents/encryptedwp_file.mp4";
-        encrypt_file_path(file_path, encrypted_file_path, password).expect("Dosya şifrelenemedi!");
-        println!("Dosya başarıyla şifrelendi: {}", encrypted_file_path);
+        encrypt_file_path(file_path, encrypted_file_path, password).expect("Failed to encrypt the file!");
+        println!("File encrypted successfully: {}", encrypted_file_path);
 
-        // 7. Şifrelenmiş dosyayı depola
-        let encrypted_file_data = read_file(encrypted_file_path).expect("Şifreli dosya okunamadı!");
-        // // 4. Anahtarı geri yükle ve doğrula
+        // 7. Store the encrypted file
+        let encrypted_file_data = read_file(encrypted_file_path).expect("Failed to read the encrypted file!");
+        // // 4. Load and verify the key
         // let loaded_key_data =
-        //     load_and_decrypt_key(key_file_path, password).expect("Anahtar geri yüklenemedi!");
-        // println!("Anahtar başarıyla yüklendi: {:?}", loaded_key_data);
+        //     load_and_decrypt_key(key_file_path, password).expect("Failed to load the key!");
+        // println!("Key loaded successfully: {:?}", loaded_key_data);
 
-        store_file(&encrypted_file_data, storage_path, file_name).expect("Dosya kaydedilemedi!");
+        store_file(&encrypted_file_data, storage_path, file_name).expect("Failed to save the file!");
         println!(
-            "Şifrelenmiş dosya depolama alanına kaydedildi: {}",
+            "Encrypted file saved to storage: {}",
             file_name
         );
     } else {
-        println!("Yeterli depolama alanı yok!");
+        println!("Not enough storage space!");
     }
 
-    // 8. Proof-of-Spacetime mekanizmasını çalıştır
+    // 8. Run the Proof-of-Spacetime mechanism
     let cloned_storage_path = storage_path.to_string();
     task::spawn(async move {
         periodic_check(&cloned_storage_path).await;
     });
 
-    // Uygulama sürekli çalışsın
+    // Keep the application running
     loop {
         tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
     }
 }
 
-/// Bir dosyayı okuyup byte dizisi olarak döndüren yardımcı fonksiyon
+/// Helper function to read a file and return it as a byte array
 fn read_file(file_path: &str) -> Result<Vec<u8>, std::io::Error> {
     let mut file = File::open(file_path)?;
     let mut buffer = Vec::new();
@@ -124,54 +123,54 @@ fn read_file(file_path: &str) -> Result<Vec<u8>, std::io::Error> {
     Ok(buffer)
 }
 
-//     // Binance Smart Chain istemcisi başlat
+//     // Start Binance Smart Chain client
 //     let client = BscClient::new().await?;
 
-//     // Kullanıcıdan gelen dosyayı şifrele ve depola
-//     let file_data = b"Merhaba Binance Smart Chain!";
+//     // Encrypt and store the file from the user
+//     let file_data = b"Hello Binance Smart Chain!";
 //     let file_name = "example.txt";
 
-//     // Gerçek ağdaki node'lar
-//     let mut network = Network::new();  // P2P ağında bulunan node'larla bağlantı
-//     let nodes = network.get_nodes().await;  // Ağdaki node'ları al
+//     // Real network nodes
+//     let mut network = Network::new();  // Connect to nodes in the P2P network
+//     let nodes = network.get_nodes().await;  // Get the nodes in the network
 
-//     // Dosya boyutunu al
+//     // Get the file size
 //     let file_size = file_data.len() as u64;
 
-//     // Dosya için uygun node bul
+//     // Find a suitable node for the file
 //     if let Some(node) = find_available_node(file_size, &nodes) {
-//         // Dosyayı uygun node üzerine depola
+//         // Store the file on the suitable node
 //         let node_storage_path = node.storage_path.clone();
 //         storage::store_file(file_data, &node_storage_path, file_name)?;
-//         println!("Dosya başarıyla node üzerine yüklendi: {}", file_name);
+//         println!("File successfully uploaded to the node: {}", file_name);
 
-//         // Metadata bilgisi oluştur
-//         let file_id = "unique_file_hash";  // Gerçek dosya hash'i ile değiştirilmelidir
-//         let node_id = &node.id;  // Node kimliğini al
+//         // Create metadata information
+//         let file_id = "unique_file_hash";  // Should be replaced with the actual file hash
+//         let node_id = &node.id;  // Get the node ID
 
 //         let contract_address: Address = "0xYourSmartContractAddress".parse()?;
 
-//         // Metadata bilgisini Smart Contract'a gönder
+//         // Send metadata information to the Smart Contract
 //         let tx_hash = client
 //             .send_metadata(contract_address, file_id, node_id)
 //             .await?;
 
-//         println!("Metadata blockchain'e yazıldı. İşlem Hash'i: {:?}", tx_hash);
+//         println!("Metadata written to the blockchain. Transaction Hash: {:?}", tx_hash);
 //     } else {
-//         println!("Yeterli depolama alanı bulunan node bulunamadı.");
+//         println!("No node with sufficient storage space found.");
 //     }
 
 //     Ok(())
 // }
 
 //try to create a blockchain and network
-// // Blockchain başlat
+// // Start the blockchain
 // let mut blockchain = Blockchain::new();
 
-// // P2P ağını başlat
+// // Start the P2P network
 // let mut network = Network::new();
 
-// // Node'ları oluştur ve ağa ekle
+// // Create and add nodes to the network
 // let mut node1 = Node::new("node1", "./node1_storage", 100); // 100 MB
 // let mut node2 = Node::new("node2", "./node2_storage", 200); // 200 MB
 // node1.calculate_used_space();
@@ -179,15 +178,15 @@ fn read_file(file_path: &str) -> Result<Vec<u8>, std::io::Error> {
 // network.add_node(node1);
 // network.add_node(node2);
 
-// // Dosya yükleme işlemi
+// // File upload process
 // let file_data = b"Hello, world!";
 // let file_size = (file_data.len() / (1024 * 1024)) as u64;
 
 // if let Some(node) = network.find_suitable_node(file_size) {
-//     println!("Dosya {} noduna yükleniyor...", node.id);
+//     println!("Uploading file to node {}...", node.id);
 //     storage::store_file(file_data, &node.storage_path, "example.txt");
 
-//     // Blockchain'e işlem ekle
+//     // Add transaction to the blockchain
 //     let transaction = Transaction {
 //         file_id: "example.txt".to_string(),
 //         node_id: node.id.clone(),
@@ -195,14 +194,14 @@ fn read_file(file_path: &str) -> Result<Vec<u8>, std::io::Error> {
 //     };
 
 //     blockchain.add_block(vec![transaction]);
-//     println!("Blockchain güncellendi: {:?}", blockchain.chain);
+//     println!("Blockchain updated: {:?}", blockchain.chain);
 // } else {
-//     println!("Yeterli alana sahip bir node bulunamadı.");
+//     println!("No node with sufficient space found.");
 // }
 
 //try to proof of spacetime
 // let file_path = "C:/Users/melisates/Documents/WhatsApp Video 2024-11-03 at 18.47.50_f9c56fbd.mp4";
-// periodic_check(file_path);  // Periyodik kontrol başlatılır
+// periodic_check(file_path);  // Start periodic check
 
 //try to encrypt and decrypt a file
 //     let file_path = "C:/Users/melisates/Downloads/1. Algorithms and Computation.mp4";
@@ -213,37 +212,37 @@ fn read_file(file_path: &str) -> Result<Vec<u8>, std::io::Error> {
 //     let decrypted_file_path = "C:/Users/melisates/Documents/decrypted_fileee.mp4";
 //     let key_file_path = "C:/Users/melisates/Documents/key_data.mp4";
 
-//     println!("Şifrelenmiş dosya boyutu: {}", std::fs::metadata(encrypted_file_path)?.len());
-// println!("Şifre çözülmeden önce dosya boyutu: {}", std::fs::metadata(decrypted_file_path)?.len());
+//     println!("Encrypted file size: {}", std::fs::metadata(encrypted_file_path)?.len());
+// println!("File size before decryption: {}", std::fs::metadata(decrypted_file_path)?.len());
 
-//     // 1. Anahtar ve IV oluştur
+//     // 1. Generate key and IV
 //     let key_data = generate_key_iv();
 //     println!("Key_: {:?}", key_data.key);
 // println!("IV_: {:?}", key_data.iv);
 
-//     // 2. Şifreleme anahtarı ve IV'yi kullanıcıya kaydedilecek şekilde JSON olarak kaydet
+//     // 2. Save the encryption key and IV as JSON for the user
 //     save_key_locally(key_file_path, &key_data)?;
-//     println!("Anahtar ve IV kullanıcıya kaydedildi: {}", key_file_path);
+//     println!("Key and IV saved for the user: {}", key_file_path);
 
-//     // 3. Dosyayı şifrele
+//     // 3. Encrypt the file
 //     encrypt_file_path(file_path, encrypted_file_path, &key_data.key, &key_data.iv)?;
-//     println!("Dosya başarıyla şifrelendi: {}", encrypted_file_path);
+//     println!("File encrypted successfully: {}", encrypted_file_path);
 
-//     // 4. Dosyanın şifresini çöz
+//     // 4. Decrypt the file
 //     decrypt_file_path(
 //         encrypted_file_path,
 //         decrypted_file_path,
 //         &key_data.key,
 //         &key_data.iv,
 //     )?;
-//     println!("Dosya başarıyla çözüldü: {}", decrypted_file_path);
+//     println!("File decrypted successfully: {}", decrypted_file_path);
 
-//     println!("çözülmüş dosya boyutu: {}", std::fs::metadata(decrypted_file_path)?.len());
+//     println!("Decrypted file size: {}", std::fs::metadata(decrypted_file_path)?.len());
 
 // Ok(())
 // }
 
-// Anahtar ve IV üret
+// Generate key and IV
 // let mut key_manager =KeyManager{
 //     keys: HashMap::new(),
 // };

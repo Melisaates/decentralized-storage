@@ -20,24 +20,14 @@ pub fn store_file(
     // Create the directory path if it doesn't exist
     let dir_path = Path::new(node_storage_path);
     if !dir_path.exists() {
-        fs::create_dir_all(&dir_path).map_err(|e| {
-            format!(
-                "Failed to create directory {}: {}",
-                dir_path.display(),
-                e
-            )
-        })?;
+        fs::create_dir_all(&dir_path)
+            .map_err(|e| format!("Failed to create directory {}: {}", dir_path.display(), e))?;
     }
 
     // Use Path manipulation for file path
     let file_path = dir_path.join(file_name);
-    let mut file = File::create(&file_path).map_err(|e| {
-        format!(
-            "Failed to create file {}: {}",
-            file_path.display(),
-            e
-        )
-    })?;
+    let mut file = File::create(&file_path)
+        .map_err(|e| format!("Failed to create file {}: {}", file_path.display(), e))?;
 
     // Write the encrypted data to the file
     file.write_all(encrypted_data_content).map_err(|e| {
@@ -49,36 +39,31 @@ pub fn store_file(
     })?;
 
     // Ensure the file is fully written to disk
-    file.sync_all().map_err(|e| {
-        format!(
-            "Failed to sync data to file {}: {}",
-            file_path.display(),
-            e
-        )
-    })?;
+    file.sync_all()
+        .map_err(|e| format!("Failed to sync data to file {}: {}", file_path.display(), e))?;
 
     println!("File successfully stored at {}", file_path.display());
 
     Ok(())
 }
 
-
 pub async fn can_store_file(
-    nodes: &Vec<Node>, // Tüm düğümleri içeren liste
-    file_size: u64,    // Dosya boyutu
-) -> Option<String> {  // Depolayabileceği düğümün ID'sini döndür
+    nodes: &Vec<Node>, // List of all nodes
+    file_size: u64,    // Size of the file
+) -> Option<String> {
+    // Return the ID of the node that can store the file
     for node in nodes {
         let storage_dir = Path::new(&node.storage_path);
         println!("Checking storage for node: {}", node.id);
 
-        // Eğer dizin yoksa, oluştur
+        // If the directory doesn't exist, create it
         if !storage_dir.exists() {
-            fs::create_dir_all(storage_dir).ok(); // Hata oluşursa devam et
+            fs::create_dir_all(storage_dir).ok(); // Continue if there's an error
         }
 
-        // Düğümde kullanılan toplam alanı hesapla
+        // Calculate the total used space in the node
         let total_used = fs::read_dir(storage_dir)
-            .unwrap_or_else(|_| fs::read_dir("/dev/null").unwrap()) // Hata oluşursa boş döner
+            .unwrap_or_else(|_| fs::read_dir("/dev/null").unwrap()) // Return empty if there's an error
             .filter_map(Result::ok)
             .map(|entry| entry.metadata())
             .filter_map(Result::ok)
@@ -90,10 +75,10 @@ pub async fn can_store_file(
             node.id, total_used, node.available_space, file_size
         );
 
-        // Dosya depolanabiliyorsa düğüm ID'sini döndür
+        // Return the node ID if it can store the file
         if total_used + file_size <= node.available_space {
             return Some(node.id.clone());
         }
     }
-    None // Uygun düğüm bulunamadı
+    None // No suitable node found
 }

@@ -1,11 +1,10 @@
-use std::collections::HashMap;
-use tokio::sync::Mutex;
-use std::sync::Arc;
-use std::net::SocketAddr;
-use tokio::net::TcpListener;
-use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
 use serde::{Deserialize, Serialize};
-use ethers::types::Address;
+use std::collections::HashMap;
+use std::net::SocketAddr;
+use std::sync::Arc;
+use tokio::io::{self, AsyncReadExt};
+use tokio::net::TcpListener;
+use tokio::sync::Mutex;
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Node {
@@ -43,7 +42,7 @@ impl Network {
     pub async fn start_server(&self, addr: SocketAddr) -> io::Result<()> {
         let listener = TcpListener::bind(addr).await?;
         println!("Server started on {:?}", addr);
-    
+
         loop {
             match listener.accept().await {
                 Ok((mut socket, _)) => {
@@ -54,8 +53,13 @@ impl Network {
                         match socket.read(&mut buffer).await {
                             Ok(bytes_read) if bytes_read > 0 => {
                                 // Convert the received data to a Node structure
-                                if let Ok(message) = serde_json::from_slice::<Node>(&buffer[..bytes_read]) {
-                                    nodes.lock().await.insert(message.id.clone(), message.clone());
+                                if let Ok(message) =
+                                    serde_json::from_slice::<Node>(&buffer[..bytes_read])
+                                {
+                                    nodes
+                                        .lock()
+                                        .await
+                                        .insert(message.id.clone(), message.clone());
                                     println!("Node added: {:?}", message);
                                 } else {
                                     eprintln!("Failed to deserialize Node from received data");
@@ -76,11 +80,12 @@ impl Network {
             }
         }
     }
-    
 }
 
 // Function to find a node with enough available space for a file
 pub fn find_available_node(file_size: u64, nodes: &[Node]) -> Option<Node> {
-    nodes.iter().find(|&node| node.available_space >= file_size).cloned()
+    nodes
+        .iter()
+        .find(|&node| node.available_space >= file_size)
+        .cloned()
 }
-
