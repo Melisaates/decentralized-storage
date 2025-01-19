@@ -1,5 +1,5 @@
 mod p2p;
-use encryption::{decrypt_file_path, encrypt_file_path};
+use encryption::{encrypt_file_chunked};
 use key_management::{generate_key_iv, load_and_decrypt_key, save_key_locally};
 use p2p::{find_available_node, Network, Node};
 use storage::{can_store_file, store_file}; // To connect to the P2P network
@@ -84,7 +84,7 @@ async fn main() {
     if let Some(node_id) = can_store_file(&nodes, file_size).await {
         // 6. Encrypt the file
         let encrypted_file_path = "C:/Users/melisates/Documents/encryptedwp_file.mp4";
-        encrypt_file_path(file_path, encrypted_file_path, password).expect("Failed to encrypt the file!");
+        encrypt_file_chunked(file_path, encrypted_file_path, password).expect("Failed to encrypt the file!");
         println!("File encrypted successfully: {}", encrypted_file_path);
 
         // 7. Store the encrypted file
