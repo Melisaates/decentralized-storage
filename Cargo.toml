@@ -26,6 +26,7 @@ base64 = "0.22.1"
 lazy_static = "1.4"
 ethers = "2.0.14"
 dotenv = "0.15.0"
+uuid = { version = "1.11.1", features = ["v4"] }
 
 
 

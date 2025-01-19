@@ -955,6 +955,7 @@ dependencies = [
  "serde_json",
  "sha2 0.9.9",
  "tokio",
+ "uuid 1.12.0",
 ]
 
 [[package]]
@@ -1255,7 +1256,7 @@ dependencies = [
  "sha2 0.10.8",
  "sha3",
  "thiserror",
- "uuid",
+ "uuid 0.8.2",
 ]
 
 [[package]]
@@ -4280,6 +4281,15 @@ checksum = "bc5cf98d8186244414c848017f0e2676b3fcb46807f6668a97dfe67359a3c4b7"
 dependencies = [
  "getrandom",
  "serde",
+]
+
+[[package]]
+name = "uuid"
+version = "1.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "744018581f9a3454a9e15beb8a33b017183f1e7c0cd170232a2d1453b23a51c4"
+dependencies = [
+ "getrandom",
 ]
 
 [[package]]

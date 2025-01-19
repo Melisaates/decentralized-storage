@@ -26,7 +26,7 @@ pub fn derive_key(password: &str) -> [u8; 32] {
     hasher.update(password);
     let result = hasher.finalize();
     let mut derived_key = [0u8; 32];
-    derived_key.copy_from_slice(&result);
+    derived_key.copy_from_slice(&result[..]);
     derived_key
 }
 

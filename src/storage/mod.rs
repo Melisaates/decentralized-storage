@@ -2,11 +2,14 @@ use crate::p2p::Node;
 use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::path::Path;
+use crypto::sha2::Sha256;
+use crypto::digest::Digest;
 
 pub fn store_file(
     encrypted_data_content: &[u8],
     node_storage_path: &str,
     file_name: &str,
+    node_id: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Check for empty parameters
     if node_storage_path.is_empty() || file_name.is_empty() {
@@ -38,9 +41,22 @@ pub fn store_file(
     file.sync_all()
         .map_err(|e| format!("Failed to sync data to file {}: {}", file_path.display(), e))?;
 
-    println!("File successfully stored at {}", file_path.display());
+    // Generate a hash for the file for integrity check
+    let mut hasher = Sha256::new();
+    hasher.input(encrypted_data_content);
+    let file_hash = hasher.result_str();
+
+    println!("File successfully stored at {}, hash: {}", file_path.display(), file_hash);
+
+    // Store the file hash along with node_id in a registry or database (optional)
+    store_file_hash(file_hash, node_id);
 
     Ok(())
+}
+
+pub fn store_file_hash(file_hash: String, node_id: &str) {
+    // In a real decentralized system, the hash and node_id should be stored in a distributed registry
+    println!("Storing hash for file on node {}: {}", node_id, file_hash);
 }
 
 pub async fn can_store_file(

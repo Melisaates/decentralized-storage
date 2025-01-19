@@ -18,110 +18,202 @@ use tokio::task;
 mod proof_of_spacetime;
 use proof_of_spacetime::periodic_check;
 
+mod storage_api;
+use storage_api::StorageAPI;
+
 #[tokio::main]
-async fn main() {
-    // 1. Start the P2P network
-    let network = Arc::new(Network::new());
-    let server_address: SocketAddr = "127.0.0.1:8080".parse().unwrap_or_else(|e| {
-        eprintln!("Invalid address: {:?}", e);
-        process::exit(1);
-    });
-    // Add a sample node
-    let node = Node {
-        id: "node_1".to_string(),
-        storage_path: "/data/node_1".to_string(),
-        available_space: 10000,
-    };
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // API'yi başlat
+    let storage_api = StorageAPI::new(
+        "storage/", 
+        "127.0.0.1:8080"
+    );
 
-    network.add_node(node).await;
+    // Node'ları ekle
+    storage_api.add_node(
+        "node1".to_string(),
+        "/data/node1".to_string(),
+        1000000
+    ).await?;
 
-    let node3 = Node {
-        id: "node_8".to_string(),
-        storage_path: "/data/node_8".to_string(),
-        available_space: 800000000000,
-    };
+    storage_api.add_node(
+        "node2".to_string(),
+        "/data/node2".to_string(),
+        2000000
+    ).await?;
 
-    network.add_node(node3).await;
+    // Dosya yükle
+    let file_id = storage_api.upload_file(
+        "test.txt",
+        Some("password123")  // İsteğe bağlı şifreleme
+    ).await?;
+    println!("File uploaded with ID: {}", file_id);
 
-    println!("Nodes added successfully!");
-    println!("{:?}", network.get_nodes().await);
+    // Node'ları listele
+    let nodes = storage_api.list_nodes().await?;
+    println!("Available nodes: {:?}", nodes);
 
-    let network_clone = Arc::clone(&network);
-    tokio::spawn(async move {
-        if let Err(e) = network_clone.start_server(server_address).await {
-            eprintln!("Server error: {:?}", e);
-        }
-    });
+    // Dosyaları listele
+    let files = storage_api.list_files().await?;
+    println!("Stored files: {:?}", files);
 
-    // 2. Start the storage system
-    let storage_path = "storage/";
+    // Dosya indir
+    storage_api.download_file(
+        &file_id,
+        "downloaded_test.txt",
+        Some("password123")
+    ).await?;
 
-    // 3. Generate and save a key for encryption
-    let key_file_path = "keys/key_data.json";
-    let password = "128"; // Set a password for the key
-                          //let key_data = generate_key_iv();
-                          //save_key_locally(key_file_path, &key_data, password).expect("Failed to save the key!");
-
-    // println!("Key generated and saved successfully!");
-    // println!("Key: {:?}", key_data);
-    // println!("***************");
-
-    // 5. Automatically calculate the file size and check the storage space
-    let file_path =
-        "C:/Users/melisates//Documents/WhatsApp Video 2024-11-03 at 18.47.50_f9c56fbd.mp4";
-    let file_name = "wp.mp4";
-    let file_data = read_file(file_path).expect("Failed to read the file!");
-    let file_size = file_data.len() as u64; // Calculate the file size in bytes.
-                                            // Get the nodes in the network and find a suitable node
-    let nodes = network.get_nodes().await; // Now accessible
-    if let Some(available_node) = find_available_node(2000, &nodes) {
-        println!("Available Node: {:?}", available_node);
-    } else {
-        println!("No suitable node found");
-    }
-
-    // Check if there is a node that can store the file
-    if let Some(node_id) = can_store_file(&nodes, file_size).await {
-        // 6. Encrypt the file
-        let encrypted_file_path = "C:/Users/melisates/Documents/encryptedwp_file.mp4";
-        encrypt_file_chunked(file_path, encrypted_file_path, password).expect("Failed to encrypt the file!");
-        println!("File encrypted successfully: {}", encrypted_file_path);
-
-        // 7. Store the encrypted file
-        let encrypted_file_data = read_file(encrypted_file_path).expect("Failed to read the encrypted file!");
-        // // 4. Load and verify the key
-        // let loaded_key_data =
-        //     load_and_decrypt_key(key_file_path, password).expect("Failed to load the key!");
-        // println!("Key loaded successfully: {:?}", loaded_key_data);
-
-        store_file(&encrypted_file_data, storage_path, file_name).expect("Failed to save the file!");
-        println!(
-            "Encrypted file saved to storage: {}",
-            file_name
-        );
-    } else {
-        println!("Not enough storage space!");
-    }
-
-    // 8. Run the Proof-of-Spacetime mechanism
-    let cloned_storage_path = storage_path.to_string();
-    task::spawn(async move {
-        periodic_check(&cloned_storage_path).await;
-    });
-
-    // Keep the application running
-    loop {
-        tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
-    }
+    Ok(())
 }
 
-/// Helper function to read a file and return it as a byte array
-fn read_file(file_path: &str) -> Result<Vec<u8>, std::io::Error> {
-    let mut file = File::open(file_path)?;
-    let mut buffer = Vec::new();
-    file.read_to_end(&mut buffer)?;
-    Ok(buffer)
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//************************************************************************************************************** */
+//[tokio::main]
+//async fn main() {
+//     // 1. Start the P2P network
+//     let network = Arc::new(Network::new());
+//     let server_address: SocketAddr = "127.0.0.1:8080".parse().unwrap_or_else(|e| {
+//         eprintln!("Invalid address: {:?}", e);
+//         process::exit(1);
+//     });
+//     // Add a sample node
+//     let node = Node {
+//         id: "node_1".to_string(),
+//         storage_path: "/data/node_1".to_string(),
+//         available_space: 10000,
+//     };
+
+//     network.add_node(node).await;
+
+//     let node3 = Node {
+//         id: "node_8".to_string(),
+//         storage_path: "/data/node_8".to_string(),
+//         available_space: 800000000000,
+//     };
+
+//     network.add_node(node3).await;
+
+//     println!("Nodes added successfully!");
+//     println!("{:?}", network.get_nodes().await);
+
+//     let network_clone = Arc::clone(&network);
+//     tokio::spawn(async move {
+//         if let Err(e) = network_clone.start_server(server_address).await {
+//             eprintln!("Server error: {:?}", e);
+//         }
+//     });
+
+//     // 2. Start the storage system
+//     let storage_path = "storage/";
+
+//     // 3. Generate and save a key for encryption
+//     let key_file_path = "keys/key_data.json";
+//     let password = "128"; // Set a password for the key
+//                           //let key_data = generate_key_iv();
+//                           //save_key_locally(key_file_path, &key_data, password).expect("Failed to save the key!");
+
+//     // println!("Key generated and saved successfully!");
+//     // println!("Key: {:?}", key_data);
+//     // println!("***************");
+
+//     // 5. Automatically calculate the file size and check the storage space
+//     let file_path =
+//         "C:/Users/melisates//Documents/WhatsApp Video 2024-11-03 at 18.47.50_f9c56fbd.mp4";
+//     let file_name = "wp.mp4";
+//     let file_data = read_file(file_path).expect("Failed to read the file!");
+//     let file_size = file_data.len() as u64; // Calculate the file size in bytes.
+//                                             // Get the nodes in the network and find a suitable node
+//     let nodes = network.get_nodes().await; // Now accessible
+//     if let Some(available_node) = find_available_node(2000, &nodes) {
+//         println!("Available Node: {:?}", available_node);
+//     } else {
+//         println!("No suitable node found");
+//     }
+
+//     // Check if there is a node that can store the file
+//     if let Some(node_id) = can_store_file(&nodes, file_size).await {
+//         // 6. Encrypt the file
+//         let encrypted_file_path = "C:/Users/melisates/Documents/encryptedwp_file.mp4";
+//         encrypt_file_chunked(file_path, encrypted_file_path, password).expect("Failed to encrypt the file!");
+//         println!("File encrypted successfully: {}", encrypted_file_path);
+
+//         // 7. Store the encrypted file
+//         let encrypted_file_data = read_file(encrypted_file_path).expect("Failed to read the encrypted file!");
+//         // // 4. Load and verify the key
+//         // let loaded_key_data =
+//         //     load_and_decrypt_key(key_file_path, password).expect("Failed to load the key!");
+//         // println!("Key loaded successfully: {:?}", loaded_key_data);
+
+//         store_file(&encrypted_file_data, storage_path, file_name).expect("Failed to save the file!");
+//         println!(
+//             "Encrypted file saved to storage: {}",
+//             file_name
+//         );
+//     } else {
+//         println!("Not enough storage space!");
+//     }
+
+//     // 8. Run the Proof-of-Spacetime mechanism
+//     let cloned_storage_path = storage_path.to_string();
+//     task::spawn(async move {
+//         periodic_check(&cloned_storage_path).await;
+//     });
+
+//     // Keep the application running
+//     loop {
+//         tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
+//     }
+// }
+
+// /// Helper function to read a file and return it as a byte array
+// fn read_file(file_path: &str) -> Result<Vec<u8>, std::io::Error> {
+//     let mut file = File::open(file_path)?;
+//     let mut buffer = Vec::new();
+//     file.read_to_end(&mut buffer)?;
+//     Ok(buffer)
+// }
+
+//************************************************************************************************************** */
+
+
+
+
+
+
+
 
 //     // Start Binance Smart Chain client
 //     let client = BscClient::new().await?;
