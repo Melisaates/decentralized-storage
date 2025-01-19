@@ -16,6 +16,9 @@ pub struct KeyData {
     pub iv: [u8; 16],
 }
 
+// Define the file path as a constant
+const KEY_FILE_PATH: &str = "path/to/key_file.key";  // Update this path as needed
+
 // Key derivation function (KDF) for encryption
 // Derive a 32-byte key from a password
 pub fn derive_key(password: &str) -> [u8; 32] {
@@ -92,22 +95,22 @@ pub fn decrypt_key_data(encrypted_key: &[u8], encryption_key: &[u8; 32]) -> KeyD
 
 
 // Save the encrypted key to a file
-pub fn save_encrypted_key(file_path: &str, encrypted_key: &[u8]) -> std::io::Result<()> {
-    let mut file = File::create(file_path)?;
+pub fn save_encrypted_key(encrypted_key: &[u8]) -> std::io::Result<()> {
+    let mut file = File::create(KEY_FILE_PATH)?;
     file.write_all(encrypted_key)?;
     Ok(())
 }
 
 // Load the encrypted key from a file
-pub fn load_encrypted_key(file_path: &str) -> std::io::Result<Vec<u8>> {
-    let mut file = File::open(file_path)?;
+pub fn load_encrypted_key() -> std::io::Result<Vec<u8>> {
+    let mut file = File::open(KEY_FILE_PATH)?;
     let mut encrypted_key = Vec::new();
     file.read_to_end(&mut encrypted_key)?;
     Ok(encrypted_key)
 }
 
-pub fn load_and_decrypt_key(file_path: &str, password: &str) -> std::io::Result<KeyData> {
-    let encrypted_key = load_encrypted_key(file_path)?;
+pub fn load_and_decrypt_key(password: &str) -> std::io::Result<KeyData> {
+    let encrypted_key = load_encrypted_key()?;
     println!("Encrypted key: {:?}", encrypted_key);
     println!("Encrypted key length: {}", encrypted_key.len());
 
@@ -121,7 +124,7 @@ pub fn load_and_decrypt_key(file_path: &str, password: &str) -> std::io::Result<
 }
 
 // To store the key locally
-pub fn save_key_locally(file_path: &str, key_data: &KeyData, password: &str) -> std::io::Result<()> {
+pub fn save_key_locally(key_data: &KeyData, password: &str) -> std::io::Result<()> {
     let encryption_key = derive_key(password);
     println!("++++++++++++++");
     println!("Encryption key: {:?}", encryption_key);
@@ -132,5 +135,5 @@ pub fn save_key_locally(file_path: &str, key_data: &KeyData, password: &str) -> 
 
     let encrypted_key = encrypt_key_data(key_data, &encryption_key);
     println!("Encrypted key: {:?}", encrypted_key);
-    save_encrypted_key(file_path, &encrypted_key)
+    save_encrypted_key(&encrypted_key)
 }
