@@ -1,5 +1,5 @@
 mod p2p;
-use encryption::{encrypt_file_chunked};
+use encryption::{encrypt_file_chunked, decrypt_file_chunked,encrypt_data_chunked,decrypt_data_chunked};
 use key_management::{generate_key_iv, load_and_decrypt_key, save_key_locally};
 use p2p::{find_available_node, Network, Node};
 use storage::{can_store_file, store_file}; // To connect to the P2P network
