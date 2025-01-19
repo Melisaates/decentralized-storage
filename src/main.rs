@@ -17,52 +17,76 @@ use std::sync::Arc;
 use tokio::task;
 mod proof_of_spacetime;
 use proof_of_spacetime::periodic_check;
+mod network_behaviour;
+use network_behaviour::{store_chunk_on_node};
+
 
 mod storage_api;
 use storage_api::StorageAPI;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+
+
     // API'yi başlat
     let storage_api = StorageAPI::new(
         "storage/", 
         "127.0.0.1:8080"
-    );
+    ).await?;
+let node1: Node = Node {
+    id: "node1".to_string(),
+    storage_path: "/data/node1".to_string(),
+    available_space: 1000000,
+};
 
     // Node'ları ekle
-    storage_api.add_node(
-        "node1".to_string(),
-        "/data/node1".to_string(),
-        1000000
-    ).await?;
+    storage_api.add_node(node1.clone()).await?;
 
-    storage_api.add_node(
-        "node2".to_string(),
-        "/data/node2".to_string(),
-        2000000
-    ).await?;
+    let node2: Node = Node {
+        id: "node2".to_string(),
+        storage_path: "/data/node2".to_string(),
+        available_space: 2000000,
+    };
+    
+        // Node'ları ekle
+        storage_api.add_node(node2.clone()).await?;
+
+
+
+        let node3: Node = Node {
+            id: "node3".to_string(),
+            storage_path: "/data/node3".to_string(),
+            available_space: 3000000,
+        };
+        
+            // Node'ları ekle
+            storage_api.add_node(node3.clone()).await?;
+
+
 
     // Dosya yükle
     let file_id = storage_api.upload_file(
         "test.txt",
-        Some("password123")  // İsteğe bağlı şifreleme
+        "password123",
+        "file_id"  // Third argument
     ).await?;
     println!("File uploaded with ID: {}", file_id);
 
-    // Node'ları listele
-    let nodes = storage_api.list_nodes().await?;
-    println!("Available nodes: {:?}", nodes);
+    // // Node'ları listele
+    // let nodes = storage_api.list_nodes().await?;
+    // println!("Available nodes: {:?}", nodes);
 
-    // Dosyaları listele
-    let files = storage_api.list_files().await?;
-    println!("Stored files: {:?}", files);
+    // // Dosyaları listele
+    // let files = storage_api.list_files().await?;
+    // println!("Stored files: {:?}", files);
 
-    // Dosya indir
-    storage_api.download_file(
-        &file_id,
-        "downloaded_test.txt",
-        Some("password123")
-    ).await?;
+    // // Dosya indir
+    // storage_api.download_file(
+    //     &file_id,
+    //     "downloaded_test.txt",
+    //     Some("password123")
+    // ).await?;
+    
 
     Ok(())
 }

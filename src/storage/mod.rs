@@ -2,8 +2,7 @@ use crate::p2p::Node;
 use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::path::Path;
-use crypto::sha2::Sha256;
-use crypto::digest::Digest;
+use sha2::{Sha256, Digest};
 
 pub fn store_file(
     encrypted_data_content: &[u8],
@@ -43,8 +42,8 @@ pub fn store_file(
 
     // Generate a hash for the file for integrity check
     let mut hasher = Sha256::new();
-    hasher.input(encrypted_data_content);
-    let file_hash = hasher.result_str();
+    hasher.update(encrypted_data_content);
+    let file_hash = hex::encode(hasher.finalize());
 
     println!("File successfully stored at {}, hash: {}", file_path.display(), file_hash);
 

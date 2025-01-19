@@ -1,18 +1,21 @@
 use crate::encryption::{decrypt_file_chunked, encrypt_file_chunked, split_file};
+use crate::network_behaviour::store_chunk_on_node;
 use crate::p2p::{Network, Node, find_available_node};
 use crate::proof_of_spacetime::periodic_check;
 use crate::storage::{can_store_file, store_file};
 use std::path::Path;
 use std::sync::Arc;
 use std::net::SocketAddr;
-use chrono::Utc; // Zaman damgası için chrono kullanıldı
 use tokio::sync::Mutex;
 use std::collections::HashMap;
 use uuid::Uuid;
+use chrono::Utc;
 use sha2::{Sha256, Digest};
 
 // Chunk bilgisi yapısı
 #[derive(Clone, Debug)]
+
+// this is stored file's chunk info
 pub struct ChunkInfo {
     chunk_id: String,
     node_id: String,
@@ -26,14 +29,13 @@ fn calculate_hash(data: &[u8]) -> String {
     format!("{:x}", hasher.finalize())
 }
 
-// Dosya metadata yapısı
+// Dosya metadata yapısı . General info about file
 #[derive(Clone, Debug)]
 pub struct FileMetadata {
     file_id: String,
     file_name: String,
     node_id: String,
     file_size: u64,
-    encrypted: bool,
     chunks: Vec<ChunkInfo>,
     timestamp: u64,
     owner: String,
@@ -78,8 +80,6 @@ impl StorageAPI {
         Ok(())
     }
 
-
-    // Dosyayı şifreleyip ağına yükler
     pub async fn upload_file(
         &self,
         file_path: &str,
@@ -89,6 +89,12 @@ impl StorageAPI {
         // 1. Dosya bilgilerini al
         let file_size = std::fs::metadata(file_path)?.len();
         let file_id = Uuid::new_v4().to_string();
+        let file_name = Path::new(file_path)
+            .file_name()
+            .ok_or("Failed to get file name")?
+            .to_str()
+            .ok_or("Failed to convert file name to string")?
+            .to_string();
     
         // 2. Yeterli alana sahip düğümü bul
         let nodes = self.network.get_nodes().await;
@@ -97,100 +103,90 @@ impl StorageAPI {
             .ok_or("No node found with enough storage space")?;
         let selected_node = nodes.iter().find(|n| n.id == node_id).ok_or("Node not found")?;
     
-        // 3. Dosyayı şifrele ve sakla
+        // 3. Dosyayı şifrele ve chunk'lara ayır
         let encrypted_path = format!("{}_encrypted", file_path);
         encrypt_file_chunked(file_path, &encrypted_path, encryption_password)?;
-        let chunks = split_file(&encrypted_path, 1024 * 1024)?; // 1MB chunk boyutu
-    
-
-        // 4. Distribute chunks to nodes
+        let chunks = split_file(&encrypted_path, 1024 * 1024); // 1MB chunk boyutu
         let mut chunk_infos = Vec::new();
-        for (chunk_data, node) in chunks.iter().zip(available_nodes.iter()) {
-            let chunk_id = store_chunk_on_node(chunk_data, node).await?;
-            store_file(chunk, &selected_node.storage_path, &file_name)?;
-
-            chunk_infos.push(ChunkInfo {
-                chunk_id,
-                node_id: node.id.clone(),
-                size: chunk_data.len() as u64,
-                hash: calculate_hash(chunk_data),
-            });
-        }
-       
     
-        // 4. Metadata güncelle
-        let metadata = FileMetadata {
-            node_id: selected_node.id.clone(),
-            encrypted: true,
-            file_id: file_id.clone(),
-            file_name: Path::new(file_path)
-                .file_name()
-                .ok_or("Failed to get file name")?
-                .to_str()
-                .ok_or("Failed to convert file name to string")?
-                .to_string(),
-            file_size,
-            chunks: chunks
-                .iter()
-                .enumerate()
-                .map(|(i, chunk)| ChunkInfo {
-                    chunk_id: format!("{}_chunk_{}", file_id, i),
+        // 4. Chunk'ları her bir düğüme kaydet ve paylaş
+        for chunk_data in chunks.iter() {
+            // Ağdaki düğümleri al
+            let nodes = self.network.get_nodes().await;
+    
+            // Uygun bir düğüm bul
+            if let Some(node_id) = can_store_file(&nodes, chunk_data.len() as u64).await {
+                // Düğüm bilgilerini bul
+                let selected_node = nodes.iter().find(|node| node.id == node_id).unwrap();
+    
+                // Chunk'ı düğüme kaydet
+                store_file(chunk_data, &selected_node.storage_path, &file_name, &node_id)?;
+    
+                // Chunk verisini merkeziyetsiz ağda paylaş
+                store_chunk_on_node(chunk_data, &selected_node)?;
+    
+                // Chunk bilgilerini sakla
+                chunk_infos.push(ChunkInfo {
+                    chunk_id: Uuid::new_v4().to_string(),
                     node_id: selected_node.id.clone(),
-                    size: chunk.len() as u64,
-                    hash: calculate_hash(chunk),
-                })
-                .collect(),
-            timestamp: Utc::now().timestamp() as u64, // Zaman damgası
-            owner: owner.to_string(),
-        };
-    
-        let mut index = self.file_index.lock().await;
-        index.insert(file_id.clone(), metadata);
-    
+                    size: chunk_data.len() as u64,
+                    hash: calculate_hash(chunk_data),
+                });
+            } else {
+                println!("No suitable node found to store the chunk!");
+                return Err("No suitable node found to store the chunk.".into());
+            }
+        }
+        
+        // Başarıyla dosya yüklemesi tamamlandı
         Ok(file_id)
     }
+    
 
-    // Dosyayı ağdan indirir
-    pub async fn download_file(
-        &self,
-        file_id: &str,
-        destination: &str,
-        encryption_password: &str,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        let index = self.file_index.lock().await;
-        let metadata = index.get(file_id)
-            .ok_or("File not found")?;
 
-        // 2. Retrieve chunks from nodes
-        let mut chunks = Vec::new();
-        for chunk_info in &metadata.chunks {
-            let chunk_data = retrieve_chunk_from_node(&chunk_info.node_id, &chunk_info.chunk_id).await?;
+
+
+    // // Dosyayı ağdan indirir
+    // pub async fn download_file(
+    //     &self,
+    //     file_id: &str,
+    //     destination: &str,
+    //     encryption_password: &str,
+    // ) -> Result<(), Box<dyn std::error::Error>> {
+    //     let index = self.file_index.lock().await;
+    //     let metadata = index.get(file_id)
+    //         .ok_or("File not found")?;
+
+    //     // 2. Retrieve chunks from nodes
+    //     let mut chunks = Vec::new();
+    //     for chunk_info in &metadata.chunks {
+    //         let chunk_data = retrieve_chunk_from_node(&chunk_info.node_id, &chunk_info.chunk_id).await?;
             
-            // Verify chunk integrity
-            let chunk_hash = calculate_hash(&chunk_data);
-            if chunk_hash != chunk_info.hash {
-                return Err("Chunk bütünlüğü doğrulanamadı".into());
-            }
+    //         // Verify chunk integrity
+    //         let chunk_hash = calculate_hash(&chunk_data);
+    //         if chunk_hash != chunk_info.hash {
+    //             return Err("Chunk bütünlüğü doğrulanamadı".into());
+    //         }
             
-            chunks.push(chunk_data);
-        }
+    //         chunks.push(chunk_data);
+    //     }
 
-        // 3. Merge chunks and decrypt
-        let encrypted_path = format!("{}_encrypted", destination);
-        merge_chunks(&chunks, &encrypted_path)?;
-        decrypt_file_chunked(&encrypted_path, destination, encryption_password)?;
+    //     // 3. Merge chunks and decrypt
+    //     let encrypted_path = format!("{}_encrypted", destination);
+    //     merge_chunks(&chunks, &encrypted_path)?;
+    //     decrypt_file_chunked(&encrypted_path, destination, encryption_password)?;
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
-    // Düğüm listesini al
-    pub async fn list_nodes(&self) -> Result<Vec<Node>, Box<dyn std::error::Error>> {
-        Ok(self.network.get_nodes().await)
-    }
+    // // Düğüm listesini al
+    // pub async fn list_nodes(&self) -> Result<Vec<Node>, Box<dyn std::error::Error>> {
+    //     Ok(self.network.get_nodes().await)
+    // }
 
-    // Dosya listesini al
-    pub async fn list_files(&self) -> Result<Vec<FileMetadata>, Box<dyn std::error::Error>> {
-        let index = self.file_index.lock().await;
-        Ok(index.values().cloned().collect())
-    }
+    // // Dosya listesini al
+    // pub async fn list_files(&self) -> Result<Vec<FileMetadata>, Box<dyn std::error::Error>> {
+    //     let index = self.file_index.lock().await;
+    //     Ok(index.values().cloned().collect())
+    // }
 }
