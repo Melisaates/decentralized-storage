@@ -37,6 +37,8 @@ let node1: Node = Node {
     id: "node1".to_string(),
     storage_path: "/data/node1".to_string(),
     available_space: 1000000,
+
+    
 };
 
     // Node'ları ekle

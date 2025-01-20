@@ -11,6 +11,7 @@ pub struct Node {
     pub id: String,
     pub storage_path: String, // Storage path
     pub available_space: u64,
+    pub address: String, // Node'un ağ adresi
 }
 
 // Network structure representing the P2P network

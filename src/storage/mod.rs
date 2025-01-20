@@ -3,6 +3,11 @@ use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::path::Path;
 use sha2::{Sha256, Digest};
+use tokio::net::TcpStream;
+use tokio::io::{AsyncWriteExt, BufWriter};
+use std::time::Duration;
+use tokio::time::timeout;
+use anyhow::Error;
 
 pub fn store_file(
     encrypted_data_content: &[u8],
@@ -92,4 +97,59 @@ pub async fn can_store_file(
         }
     }
     None // No suitable node found
+
 }
+
+
+
+// store_chunk_on_node fonksiyonu: Verilen chunk'ı seçilen node'a kaydeder
+pub async fn store_chunk_on_node(
+    chunk_data: &[u8], 
+    node: &Node,
+    max_retries: u8 // Maksimum tekrar deneme sayısı
+) -> anyhow::Result<()> {
+    let node_address = node.address.clone();  // Örnek: "127.0.0.1:8080"
+    
+    // Bağlantı hatalarını ve tekrarları kontrol et
+    let mut attempt = 0;
+    let mut last_error: Option<anyhow::Error> = None;
+    
+    while attempt < max_retries {
+        attempt += 1;
+
+        match timeout(Duration::from_secs(5), TcpStream::connect(&node_address)).await {
+            Ok(Ok(stream)) => {
+                let mut writer = BufWriter::new(stream);
+                
+                match writer.write_all(chunk_data).await {
+                    Ok(_) => {
+                        writer.flush().await?;
+                        println!("Chunk successfully stored on node: {}", node.id);
+                        return Ok(()); // Başarılı bir şekilde veri gönderildi
+                    }
+                    Err(e) => {
+                        eprintln!("Error writing to node {}: {:?}", node.id, e);
+                        last_error = Some(Error::new(e));
+                    }
+                }
+            },
+            Ok(Err(e)) => {
+                eprintln!("Error connecting to node {}: {:?}", node.id, e);
+                last_error = Some(Error::from(e));  // Wrap the error into `anyhow::Error`
+            },
+            Err(_) => {
+                eprintln!("Connection to node {} timed out.", node.id);
+            },
+        }
+
+        // Hata durumunda beklemeden sonra tekrar dene
+        if attempt < max_retries {
+            eprintln!("Retrying to store chunk on node: {} (Attempt {}/{})", node.id, attempt, max_retries);
+            tokio::time::sleep(Duration::from_secs(2)).await;
+        }
+    }
+
+    // Sonuçta, tüm denemeler başarısız olduysa hatayı döndür
+    Err(last_error.unwrap_or_else(|| anyhow::Error::new(std::io::Error::new(std::io::ErrorKind::Other, "Unknown error"))))
+}
+

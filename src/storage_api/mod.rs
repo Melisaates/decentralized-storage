@@ -1,21 +1,29 @@
 use crate::encryption::{decrypt_file_chunked, encrypt_file_chunked, split_file};
-use crate::network_behaviour::store_chunk_on_node;
 use crate::p2p::{Network, Node, find_available_node};
 use crate::proof_of_spacetime::periodic_check;
-use crate::storage::{can_store_file, store_file};
+use crate::storage::{can_store_file, store_chunk_on_node, store_file};
 use std::path::Path;
 use std::sync::Arc;
 use std::net::SocketAddr;
 use tokio::sync::Mutex;
 use std::collections::HashMap;
 use uuid::Uuid;
-use chrono::Utc;
+use chrono::{Duration, Utc};
 use sha2::{Sha256, Digest};
+// Dosya metadata yapısı
+#[derive(Clone, Debug)]
+pub struct FileMetadata {
+    file_id: String,
+    file_name: String,
+    node_id: String,
+    file_size: u64,
+    chunks: Vec<ChunkInfo>,
+    timestamp: u64,
+    owner: String,
+}
 
 // Chunk bilgisi yapısı
 #[derive(Clone, Debug)]
-
-// this is stored file's chunk info
 pub struct ChunkInfo {
     chunk_id: String,
     node_id: String,
@@ -29,18 +37,7 @@ fn calculate_hash(data: &[u8]) -> String {
     format!("{:x}", hasher.finalize())
 }
 
-// Dosya metadata yapısı . General info about file
-#[derive(Clone, Debug)]
-pub struct FileMetadata {
-    file_id: String,
-    file_name: String,
-    node_id: String,
-    file_size: u64,
-    chunks: Vec<ChunkInfo>,
-    timestamp: u64,
-    owner: String,
-}
-
+// StorageAPI yapısı
 pub struct StorageAPI {
     network: Arc<Network>,
     file_index: Arc<Mutex<HashMap<String, FileMetadata>>>,
@@ -74,12 +71,7 @@ impl StorageAPI {
         })
     }
 
-    // Ağdaki yeni bir düğüm ekler
-    pub async fn add_node(&self, node: Node) -> Result<(), Box<dyn std::error::Error>> {
-        self.network.add_node(node).await;
-        Ok(())
-    }
-
+    // upload_file fonksiyonu, veriyi şifreler ve düğümlere yükler
     pub async fn upload_file(
         &self,
         file_path: &str,
@@ -122,8 +114,11 @@ impl StorageAPI {
                 // Chunk'ı düğüme kaydet
                 store_file(chunk_data, &selected_node.storage_path, &file_name, &node_id)?;
     
-                // Chunk verisini merkeziyetsiz ağda paylaş
-                store_chunk_on_node(chunk_data, &selected_node)?;
+                // Chunk verisini merkeziyetsiz ağda paylaş (retry mekanizması ile)
+                if let Err(e) = store_chunk_on_node_with_retry(chunk_data, &selected_node, 3).await {
+                    eprintln!("Failed to store chunk on node {} after retries: {:?}", selected_node.id, e);
+                    return Err(e);
+                }
     
                 // Chunk bilgilerini sakla
                 chunk_infos.push(ChunkInfo {
@@ -141,7 +136,34 @@ impl StorageAPI {
         // Başarıyla dosya yüklemesi tamamlandı
         Ok(file_id)
     }
-    
+}
+
+// store_chunk_on_node_with_retry: Chunk'ı node'a kaydetmek için retry mekanizması içerir
+// Eğer başarısız olursa, belirli bir süre bekler ve tekrar dener
+pub async fn store_chunk_on_node_with_retry(
+    chunk_data: &[u8],
+    selected_node: &Node,
+    max_retries: u8,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let mut attempt = 0;
+    let mut last_error: Option<Box<dyn std::error::Error + Send + Sync>> = None;
+
+    while attempt < max_retries {
+        attempt += 1;
+        match store_chunk_on_node(chunk_data, selected_node, max_retries).await {
+            Ok(_) => return Ok(()), // Success
+            Err(e) => {
+                // Box the error and ensure it implements Send and Sync
+                last_error = Some(e.to_string().into());
+                eprintln!("Attempt {}: Failed to store chunk on node {}: {:?}", attempt, selected_node.id, e);
+            }
+        }
+        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+    }
+
+    Err(last_error.unwrap_or_else(|| Box::new(std::io::Error::new(std::io::ErrorKind::Other, "Unknown error"))))
+}
+
 
 
 
@@ -189,4 +211,3 @@ impl StorageAPI {
     //     let index = self.file_index.lock().await;
     //     Ok(index.values().cloned().collect())
     // }
-}

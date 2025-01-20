@@ -29,9 +29,8 @@ uuid = { version = "1.11.1", features = ["v4"] }
 crypto ={version = "0.5.0",features = ["digest"]}
 async-std = "1.10.0"
 chrono = "0.4.38"
-libp2p = { version = "0.38  ",default-features = false, features = ["gossipsub", "tcp-tokio","mdns","noise","yamux","async-io"] }
-
-
+libp2p = "0.42.0"
+anyhow = "1.0.40"
 
 [dev-dependencies]
 assert_cmd = "2.0"
@@ -39,3 +38,5 @@ predicates = "3.0"
 
 [profile.release]
 opt-level = 3           # Optimizasyon seviyesi (hız için optimize)
+
+
