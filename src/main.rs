@@ -1,8 +1,11 @@
 mod p2p;
 use encryption::{encrypt_file_chunked, decrypt_file_chunked,encrypt_data_chunked,decrypt_data_chunked};
+use ethers::core::k256::elliptic_curve::rand_core::le;
 use key_management::{generate_key_iv, load_and_decrypt_key, save_key_locally};
+use libp2p::core::network;
 use p2p::{find_available_node, Network, Node};
-use storage::{can_store_file, store_file}; // To connect to the P2P network
+use pkcs7::encrypted_data_content;
+use storage::{can_store_file, store_chunk_on_node, store_file}; // To connect to the P2P network
 //mod blockchain;
 // use blockchain::{BscClient}; 
 // Communication with Binance Smart Chain
@@ -17,62 +20,187 @@ use std::sync::Arc;
 use tokio::task;
 mod proof_of_spacetime;
 use proof_of_spacetime::periodic_check;
-mod network_behaviour;
-use network_behaviour::{store_chunk_on_node};
+
 
 
 mod storage_api;
 use storage_api::StorageAPI;
 
+use futures::future::ok;
+
+use anyhow::Result;
+
+/// Helper function to read a file and return it as a byte array
+fn read_file(file_path: &str) -> Result<Vec<u8>, std::io::Error> {
+    let mut file = File::open(file_path)?;
+    let mut buffer = Vec::new();
+    file.read_to_end(&mut buffer)?;
+    Ok(buffer)
+}
+
+use tokio;
+use std::error::Error;
+
+// Assuming your code is already imported here
+
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<(), Box<dyn Error>> {
+    // Initialize StorageAPI
+    let storage_path = "storage/"; // Storage path
+    let server_addr = "127.0.0.1:8080"; // You can replace this with the actual server address
+    let storage_api = StorageAPI::new(storage_path, server_addr).await?;
+
+    let listNodes =storage_api.list_nodes().await?;
+    println!("Available nodes: {:?}", listNodes);
 
 
-    // API'yi başlat
-    let storage_api = StorageAPI::new(
-        "storage/", 
-        "127.0.0.1:8080"
-    ).await?;
-let node1: Node = Node {
-    id: "node1".to_string(),
-    storage_path: "/data/node1".to_string(),
-    available_space: 1000000,
 
+    // Define the file path and owner information
+    let file_path = "C:/Users/melisates/Documents/WhatsApp Image 2024-12-01 at 14.40.49_48a551a2.jpg"; 
+    let owner = "user_id_123";
+    let encryption_password = "password123";
+
+    // Upload the file using the API
+    match storage_api.upload_file(file_path, owner, encryption_password).await {
+        Ok(file_id) => {
+            println!("File uploaded successfully with ID: {}", file_id);
+        }
+        Err(e) => {
+            eprintln!("Error uploading file: {:?}", e);
+        }
+    }
+
+    storage_api.list_files().await?;
+    println!("Stored files: {:?}", storage_api.list_files().await?);
+
+    Ok(())
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// #[tokio::main]
+// async fn main() -> Result<()> {
+//     // Örnek dosya verisi
+//     let file_path = "C:/Users/melisates/Downloads/1. Algorithms and Computation.mp4";
+//     let encrypted_data_content= read_file(file_path).expect("Failed to read the file!");
+//     let node_storage_path = "./storage"; // Depolama alanı yolu
+//     let file_name = "test_file.mp4"; // Dosya adı
+//     let node_id = "node_1"; // Node ID
+//     let password = "password123"; // Şifre
+//     let output_path = "C:/Users/melisates/Documents/encrypted_file.mp4"; // Şifrelenmiş dosya çıktı yolu
+
+//     encrypt_file_chunked(file_path, output_path, password);
+
+//     // Dosya depolama işlemi
+//     match store_file(&encrypted_data_content, node_storage_path, file_name, node_id) {
+//         Ok(_) => println!("File stored successfully."),
+//         Err(e) => eprintln!("Error storing file: {}", e),
+//     }
+
+//     // Node'ları oluştur (Bu kısmı, her node için gerekli bilgileri sağlamak amacıyla özelleştirebilirsiniz)
+//     let nodes = vec![
+//         Node {
+//             id: "node_1".to_string(),
+//             storage_path: "./storage".to_string(),
+//             available_space: 100_000, // 100 KB örnek
+//             address: "127.0.0.1:8080".to_string(),
+//         },
+//         Node {
+//             id: "node_2".to_string(),
+//             storage_path: "./storage".to_string(),
+//             available_space: 200_000, // 200 KB örnek
+//             address: "127.0.0.1:8081".to_string(),
+//         },
+//     ];
+
+//     // Dosya boyutunu al (örnek: 1 KB)
+//     let file_size = encrypted_data_content.len() as u64;
+
+//     // Hangi node'un dosyayı depolayabileceğini kontrol et
+//     match can_store_file(&nodes, file_size).await {
+//         Some(node_id) => println!("File can be stored on node: {}", node_id),
+//         None => println!("No suitable node found to store the file."),
+//     }
+
+//     // Chunk'ı bir node'a depolama işlemi (örnek chunk)
+//     let chunk_data = b"Some chunk data";
+//     //50 saniye içinde 3 tekrar deneme
+//     match store_chunk_on_node(chunk_data, &nodes[0], 3,50).await {
+//         Ok(_) => println!("Chunk successfully stored on node."),
+//         Err(e) => eprintln!("Error storing chunk: {}", e),
+//     }
+
+//     Ok(())
+// }
+
+
+
+//     // API'yi başlat
+//     let storage_api = StorageAPI::new(
+//         "storage/", 
+//         "127.0.0.1:8080"
+//     ).await?;
+// let node1: Node = Node {
+//     id: "node1".to_string(),
+//     storage_path: "/data/node1".to_string(),
+//     available_space: 1000000,
+
+
+// };
+
+//     // Node'ları ekle
+//     storage_api.add_node(node1.clone()).await?;
+
+//     let node2: Node = Node {
+//         id: "node2".to_string(),
+//         storage_path: "/data/node2".to_string(),
+//         available_space: 2000000,
+//     };
     
-};
-
-    // Node'ları ekle
-    storage_api.add_node(node1.clone()).await?;
-
-    let node2: Node = Node {
-        id: "node2".to_string(),
-        storage_path: "/data/node2".to_string(),
-        available_space: 2000000,
-    };
-    
-        // Node'ları ekle
-        storage_api.add_node(node2.clone()).await?;
+//         // Node'ları ekle
+//         storage_api.add_node(node2.clone()).await?;
 
 
 
-        let node3: Node = Node {
-            id: "node3".to_string(),
-            storage_path: "/data/node3".to_string(),
-            available_space: 3000000,
-        };
+//         let node3: Node = Node {
+//             id: "node3".to_string(),
+//             storage_path: "/data/node3".to_string(),
+//             available_space: 3000000,
+//         };
         
-            // Node'ları ekle
-            storage_api.add_node(node3.clone()).await?;
+//             // Node'ları ekle
+//             storage_api.add_node(node3.clone()).await?;
 
 
 
-    // Dosya yükle
-    let file_id = storage_api.upload_file(
-        "test.txt",
-        "password123",
-        "file_id"  // Third argument
-    ).await?;
-    println!("File uploaded with ID: {}", file_id);
+//     // Dosya yükle
+//     let file_id = storage_api.upload_file(
+//         "test.txt",
+//         "password123",
+//         "file_id"  // Third argument
+//     ).await?;
+//     println!("File uploaded with ID: {}", file_id);
 
     // // Node'ları listele
     // let nodes = storage_api.list_nodes().await?;
@@ -90,8 +218,8 @@ let node1: Node = Node {
     // ).await?;
     
 
-    Ok(())
-}
+//     Ok(())
+// }
 
 
 
@@ -376,4 +504,3 @@ let node1: Node = Node {
 
 //     (key, iv)
 // }
-//  let (key, iv) = generate_key_iv();

@@ -104,9 +104,10 @@ pub async fn can_store_file(
 
 // store_chunk_on_node fonksiyonu: Verilen chunk'ı seçilen node'a kaydeder
 pub async fn store_chunk_on_node(
-    chunk_data: &[u8], 
+    chunk_data: &[u8],
     node: &Node,
-    max_retries: u8 // Maksimum tekrar deneme sayısı
+    max_retries: u8, // Maksimum tekrar deneme sayısı başarısız olursa
+    timeout_duration: u64, // Timeout süresi, örneğin saniye olarak
 ) -> anyhow::Result<()> {
     let node_address = node.address.clone();  // Örnek: "127.0.0.1:8080"
     
@@ -117,12 +118,15 @@ pub async fn store_chunk_on_node(
     while attempt < max_retries {
         attempt += 1;
 
-        match timeout(Duration::from_secs(5), TcpStream::connect(&node_address)).await {
+        //zaman aşımı süresi ile bağlantıyı kontrol et
+        match timeout(Duration::from_secs(timeout_duration), TcpStream::connect(&node_address)).await {
+            //tcp bağlantısı başarılı bir şekilde kuruldu hedef node'a chunk'ı gönder
             Ok(Ok(stream)) => {
                 let mut writer = BufWriter::new(stream);
                 
                 match writer.write_all(chunk_data).await {
                     Ok(_) => {
+                        // Veri yazma işlemi başarılı bir şekilde tamamlandı
                         writer.flush().await?;
                         println!("Chunk successfully stored on node: {}", node.id);
                         return Ok(()); // Başarılı bir şekilde veri gönderildi
@@ -143,6 +147,7 @@ pub async fn store_chunk_on_node(
         }
 
         // Hata durumunda beklemeden sonra tekrar dene
+        //Eğer son deneme değilse 2 saniye bekle
         if attempt < max_retries {
             eprintln!("Retrying to store chunk on node: {} (Attempt {}/{})", node.id, attempt, max_retries);
             tokio::time::sleep(Duration::from_secs(2)).await;
@@ -152,4 +157,3 @@ pub async fn store_chunk_on_node(
     // Sonuçta, tüm denemeler başarısız olduysa hatayı döndür
     Err(last_error.unwrap_or_else(|| anyhow::Error::new(std::io::Error::new(std::io::ErrorKind::Other, "Unknown error"))))
 }
-
