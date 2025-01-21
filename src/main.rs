@@ -18,9 +18,15 @@ use std::net::SocketAddr;
 use std::process;
 use std::sync::Arc;
 use tokio::task;
+use tokio::runtime::Runtime;
+use std::time::Duration;
 mod proof_of_spacetime;
 use proof_of_spacetime::periodic_check;
+use tokio::time::{sleep};
 
+
+use tokio::sync::Mutex;
+use tokio::net::TcpListener;
 
 
 mod storage_api;
@@ -38,43 +44,143 @@ fn read_file(file_path: &str) -> Result<Vec<u8>, std::io::Error> {
     Ok(buffer)
 }
 
-use tokio;
 use std::error::Error;
 
-// Assuming your code is already imported here
+use tokio;
+use std::env;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
-    // Initialize StorageAPI
-    let storage_path = "storage/"; // Storage path
-    let server_addr = "127.0.0.1:8080"; // You can replace this with the actual server address
-    let storage_api = StorageAPI::new(storage_path, server_addr).await?;
-
-    let listNodes =storage_api.list_nodes().await?;
-    println!("Available nodes: {:?}", listNodes);
-
-
-
-    // Define the file path and owner information
-    let file_path = "C:/Users/melisates/Documents/WhatsApp Image 2024-12-01 at 14.40.49_48a551a2.jpg"; 
-    let owner = "user_id_123";
-    let encryption_password = "password123";
-
-    // Upload the file using the API
-    match storage_api.upload_file(file_path, owner, encryption_password).await {
-        Ok(file_id) => {
-            println!("File uploaded successfully with ID: {}", file_id);
-        }
-        Err(e) => {
-            eprintln!("Error uploading file: {:?}", e);
-        }
+async fn main() {
+    // Komut satırı argümanlarını al
+    let args: Vec<String> = env::args().collect();
+    if args.len() != 2 {
+        eprintln!("Usage: {} <address>", args[0]);
+        std::process::exit(1);
     }
 
-    storage_api.list_files().await?;
-    println!("Stored files: {:?}", storage_api.list_files().await?);
+    let addr: std::net::SocketAddr = args[1].parse().expect("Invalid address");
 
-    Ok(())
+    let network: Arc<Network> = Arc::new(Network::new());
+
+    // Statik olarak tanımlanmış başlangıç düğümleri
+    let static_peers = vec![
+        "127.0.0.1:8081".parse().unwrap(),
+        "127.0.0.1:8082".parse().unwrap(),
+    ];
+
+    let network_clone = Arc::clone(&network);
+
+    // Mevcut düğümleri kontrol et
+    let x = network_clone.get_nodes().await;
+    println!("Current nodes: {:?}", x);
+
+    // // Peer keşfini başlat
+    // tokio::spawn(async move {
+    //     network.discover_peers(static_peers).await;
+    // });
+
+    // // Sunucuyu başlat
+    // tokio::spawn(async move {
+    //     if let Err(e) = network_clone.start_server(addr).await {
+    //         eprintln!("Server error: {:?}", e);
+    //     }
+    // });
+
+    let runtime = Runtime::new().unwrap();
+    
+    // Start the server and periodic peer update concurrently
+    {
+        let network = Arc::clone(&network);
+        let addr = addr.clone();
+        runtime.spawn(async move {
+            network.start_server(addr).await.unwrap();
+        });
+    }
+
+    {
+        let network = Arc::clone(&network);
+        runtime.spawn(async move {
+            network.periodic_peer_update(static_peers).await;
+        });
+    }
+
+
+
+
+    // Programın açık kalması için beklet
+    tokio::signal::ctrl_c().await.unwrap();
+    println!("Shutting down...");
+    
 }
+
+
+    // // Get the storage path from the environment or define it
+    // let storage_path = env::var("STORAGE_PATH").unwrap_or_else(|_| "/default/storage/path".to_string());
+
+    // // Initialize the StorageAPI with network and file index
+    // let storage_api = storage_api::StorageAPI::new(&storage_path, "127.0.0.1:8000")
+    //     .await
+    //     .expect("Failed to initialize StorageAPI");
+
+    // // Initialize the Network and add nodes
+    // let network = p2p::Network::new();
+    // let initial_peers = vec!["127.0.0.1:8001".parse().unwrap(), "127.0.0.1:8002".parse().unwrap()];
+    // network.discover_peers(initial_peers).await;
+
+    // // Start the server to accept peer connections
+    // let server_addr = "127.0.0.1:8000".parse().unwrap();
+    // tokio::spawn(async move {
+    //     network.start_server(server_addr).await.unwrap();
+    // });
+
+    // // Test uploading a file
+    // let file_path = "  "; 
+    // let owner = "owner_id";
+    // let encryption_password = "encryption_password";
+
+    // match storage_api.upload_file(file_path, owner, encryption_password).await {
+    //     Ok(file_id) => println!("File uploaded successfully with file ID: {}", file_id),
+    //     Err(err) => eprintln!("Error uploading file: {}", err),
+    // }
+
+    // Ok(())
+
+
+
+// // Assuming your code is already imported here
+
+// #[tokio::main]
+// async fn main() -> Result<(), Box<dyn Error>> {
+//     // Initialize StorageAPI
+//     let storage_path = "storage/"; // Storage path
+//     let server_addr = "127.0.0.1:8080"; // You can replace this with the actual server address
+//     let storage_api = StorageAPI::new(storage_path, server_addr).await?;
+
+//     let listNodes =storage_api.list_nodes().await?;
+//     println!("Available nodes: {:?}", listNodes);
+
+
+
+//     // Define the file path and owner information
+//     let file_path = "C:/Users/melisates/Documents/WhatsApp Image 2024-12-01 at 14.40.49_48a551a2.jpg"; 
+//     let owner = "user_id_123";
+//     let encryption_password = "password123";
+
+//     // Upload the file using the API
+//     match storage_api.upload_file(file_path, owner, encryption_password).await {
+//         Ok(file_id) => {
+//             println!("File uploaded successfully with ID: {}", file_id);
+//         }
+//         Err(e) => {
+//             eprintln!("Error uploading file: {:?}", e);
+//         }
+//     }
+
+//     storage_api.list_files().await?;
+//     println!("Stored files: {:?}", storage_api.list_files().await?);
+
+//     Ok(())
+// }
 
 
 

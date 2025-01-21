@@ -10,6 +10,7 @@ use std::collections::HashMap;
 use uuid::Uuid;
 use chrono::{Duration, Utc};
 use sha2::{Sha256, Digest};
+
 // Dosya metadata yapısı
 #[derive(Clone, Debug)]
 pub struct FileMetadata {
@@ -18,7 +19,7 @@ pub struct FileMetadata {
     node_id: String,
     file_size: u64,
     chunks: Vec<ChunkInfo>,
-    timestamp: u64,// Dosyanın yüklendiği zaman
+    timestamp: u64, // Dosyanın yüklendiği zaman
     owner: String,
 }
 
@@ -41,7 +42,6 @@ fn calculate_hash(data: &[u8]) -> String {
 pub struct StorageAPI {
     network: Arc<Network>,
     file_index: Arc<Mutex<HashMap<String, FileMetadata>>>,
-    // Dosyaların depolanacağı dizin
     storage_path: String,
 }
 
@@ -50,7 +50,7 @@ impl StorageAPI {
     pub async fn new(storage_path: &str, server_addr: &str) -> Result<Self, Box<dyn std::error::Error>> {
         let network = Arc::new(Network::new());
         let addr: SocketAddr = server_addr.parse()?;
-        
+
         // Ağı başlat
         let network_clone = Arc::clone(&network);
         tokio::spawn(async move {
@@ -59,30 +59,30 @@ impl StorageAPI {
             }
         });
 
-        // Add nodes to the network
-        let node1 = Node {
-            id: "node1".to_string(),
-            storage_path: "/data/node1".to_string(),
-            available_space: 1000000,
-            address: " ".to_string()
-        };
+        // // Ağda düğümler oluşturuluyor
+        // let node1 = Node {
+        //     id: "node1".to_string(),
+        //     storage_path: "/data/node1".to_string(),
+        //     available_space: 1000000,
+        //     address: "127.0.0.1:8001".to_string(),
+        // };
+        // network.add_node(node1.clone()).await;
 
-        network.add_node(node1.clone()).await;
+        // let node2 = Node {
+        //     id: "node2".to_string(),
+        //     storage_path: "/data/node2".to_string(),
+        //     available_space: 2000000,
+        //     address: "127.0.0.1:8002".to_string(),
+        // };
+        // network.add_node(node2.clone()).await;
 
-        let node2 = Node {
-            id: "node2".to_string(),
-            storage_path: "/data/node2".to_string(),
-            available_space: 2000000,
-            address: " ".to_string()
-        };
-        network.add_node(node2.clone()).await;
-
-        let node3 = Node {
-            id: "node3".to_string(),
-            storage_path: "/data/node3".to_string(),
-            available_space: 3000000,
-            address: " ".to_string()    };
-        network.add_node(node3.clone()).await;
+        // let node3 = Node {
+        //     id: "node3".to_string(),
+        //     storage_path: "/data/node3".to_string(),
+        //     available_space: 3000000,
+        //     address: "127.0.0.1:8003".to_string(),
+        // };
+        // network.add_node(node3.clone()).await;
 
         // Zamanlı kontrol işlemini başlat
         let storage_path_clone = storage_path.to_string();
@@ -113,42 +113,39 @@ impl StorageAPI {
             .to_str()
             .ok_or("Failed to convert file name to string")?
             .to_string();
-    
+
         // 2. Yeterli alana sahip düğümü bul
         let nodes = self.network.get_nodes().await;
         let node_id = can_store_file(&nodes, file_size)
             .await
             .ok_or("No node found with enough storage space")?;
         let selected_node = nodes.iter().find(|n| n.id == node_id).ok_or("Node not found")?;
-    
-        // 3. Dosyayı şifrele ve chunk'lara ayır
-        //encrypted path is in the same directory as the original file
-//        let encrypted_path = format!("{}_encrypted", file_path);
-let encrypted_path = "C:/Users/melisates/Documents/encrypted_file.jpg";
 
+        // 3. Dosyayı şifrele ve chunk'lara ayır
+        let encrypted_path = "C:/Users/melisates/Documents/encrypted_file.jpg";
         encrypt_file_chunked(file_path, &encrypted_path, encryption_password)?;
         let chunks = split_file(&encrypted_path, 1024 * 1024); // 1MB chunk boyutu
         let mut chunk_infos = Vec::new();
-    
+
         // 4. Chunk'ları her bir düğüme kaydet ve paylaş
         for chunk_data in chunks.iter() {
             // Ağdaki düğümleri al
             let nodes = self.network.get_nodes().await;
-    
+
             // Uygun bir düğüm bul
             if let Some(node_id) = can_store_file(&nodes, chunk_data.len() as u64).await {
                 // Düğüm bilgilerini bul
                 let selected_node = nodes.iter().find(|node| node.id == node_id).unwrap();
-    
+
                 // Chunk'ı düğüme kaydet
                 store_file(chunk_data, &selected_node.storage_path, &file_name, &node_id)?;
-    
+
                 // Chunk verisini merkeziyetsiz ağda paylaş (retry mekanizması ile)
                 if let Err(e) = store_chunk_on_node_with_retry(chunk_data, &selected_node, 3).await {
                     eprintln!("Failed to store chunk on node {} after retries: {:?}", selected_node.id, e);
                     return Err(e);
                 }
-    
+
                 // Chunk bilgilerini sakla
                 chunk_infos.push(ChunkInfo {
                     chunk_id: Uuid::new_v4().to_string(),
@@ -161,11 +158,12 @@ let encrypted_path = "C:/Users/melisates/Documents/encrypted_file.jpg";
                 return Err("No suitable node found to store the chunk.".into());
             }
         }
-        
+
         // Başarıyla dosya yüklemesi tamamlandı
         Ok(file_id)
     }
-      // Düğüm listesini al
+
+    // Düğüm listesini al
     pub async fn list_nodes(&self) -> Result<Vec<Node>, Box<dyn std::error::Error>> {
         Ok(self.network.get_nodes().await)
     }
@@ -175,7 +173,6 @@ let encrypted_path = "C:/Users/melisates/Documents/encrypted_file.jpg";
         let index = self.file_index.lock().await;
         Ok(index.values().cloned().collect())
     }
-
 }
 
 // store_chunk_on_node_with_retry: Chunk'ı node'a kaydetmek için retry mekanizması içerir
@@ -190,11 +187,9 @@ pub async fn store_chunk_on_node_with_retry(
 
     while attempt < max_retries {
         attempt += 1;
-        //timeout süresi 120 saniye
-        match store_chunk_on_node(chunk_data, selected_node, max_retries,120).await {
+        match store_chunk_on_node(chunk_data, selected_node, max_retries, 120).await {
             Ok(_) => return Ok(()), // Success
             Err(e) => {
-                // Box the error and ensure it implements Send and Sync
                 last_error = Some(e.to_string().into());
                 eprintln!("Attempt {}: Failed to store chunk on node {}: {:?}", attempt, selected_node.id, e);
             }
@@ -203,9 +198,7 @@ pub async fn store_chunk_on_node_with_retry(
     }
 
     Err(last_error.unwrap_or_else(|| Box::new(std::io::Error::new(std::io::ErrorKind::Other, "Unknown error"))))
-    
 }
-
 
 
 

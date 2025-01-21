@@ -47,6 +47,7 @@ fn get_random_file_part(file_path: &str, byte_count: usize) -> Result<Vec<u8>, S
     if let Err(e) = file.read_exact(&mut buffer) {
         return Err(format!("Failed to read data from file: {}", e));
     }
+    
     println!("buffer: {:?}", buffer);
 
     Ok(buffer)
