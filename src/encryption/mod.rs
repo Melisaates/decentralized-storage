@@ -6,8 +6,9 @@ use std::fs::{File, OpenOptions};
 use std::io::{self, BufWriter, Read, Seek, SeekFrom, Write};use hmac::{Hmac, Mac, NewMac};
 use sha2::Sha256;
 use hex::{encode};
+use crate::storage_api::FileMetadata;
 
-use crate::key_management::{derive_key, encrypt_key_data, generate_key_iv, load_and_decrypt_key, save_encrypted_key, save_key_locally};
+use crate::key_management::{derive_key, encrypt_key_data, generate_key_iv, load_and_decrypt_key,save_encrypted_key_to_store};
 
 const CHUNK_SIZE: usize = 10 * 1024 * 1024; // 5 MB
 const HMAC_LENGTH: usize = 32;  // HMAC length (in bytes)
@@ -23,18 +24,19 @@ fn encrypt_chunk(chunk: &[u8], cipher: &Aes128Cbc) -> Vec<u8> {
 
 // Function to encrypt a file in chunks
 pub fn encrypt_file_chunked(
+    file_id: &str,
     file_path: &str,
     output_path: &str,
     password: &str
 ) -> io::Result<()> {
 
      // Anahtarları yükle veya oluştur
-     let key_data = match load_and_decrypt_key(password) {
+     let key_data = match load_and_decrypt_key(file_id,password) {
         Ok(key_data) => key_data,
         Err(_) => {
             // Anahtar bulunamazsa yeni bir anahtar oluştur ve kaydet
             let new_key_data = generate_key_iv();
-            save_key_locally(&new_key_data, password)?;
+            save_encrypted_key_to_store(&new_key_data, password,file_id)?;
             new_key_data
         }
     };
@@ -81,13 +83,14 @@ pub fn encrypt_file_chunked(
 
 // Function to decrypt a file in chunks
 pub fn decrypt_file_chunked(
+    file_id: &str,
     file_path: &str,
     output_path: &str,
     password: &str
 ) -> Result<(), Box<dyn Error>> {
 
     // Load and decrypt the key using the password
-    let key_data = load_and_decrypt_key(password)?;
+    let key_data = load_and_decrypt_key(password,file_id)?;
 
     let mut input_file = File::open(file_path)?;
     let mut encrypted_data = Vec::new();
@@ -147,17 +150,18 @@ pub fn decrypt_file_chunked(
 
 // Function to encrypt data in chunks
 pub fn encrypt_data_chunked(
+    file_data_id: &str,
     file_data: &[u8],
     password: &str
 ) -> std::io::Result<Vec<u8>> {
 
     // Load or generate the key and IV
-    let key_data = match load_and_decrypt_key( password) {
+    let key_data = match load_and_decrypt_key( password,file_data_id) {
         Ok(key_data) => key_data,
         Err(_) => {
             // If the key is not found, generate a new key and save it
             let new_key_data = generate_key_iv();
-            save_key_locally( &new_key_data, password)?;
+            save_encrypted_key_to_store( &new_key_data, password,file_data_id)?;
             new_key_data
         }
     };
@@ -196,12 +200,13 @@ pub fn encrypt_data_chunked(
 
 // Function to decrypt data in chunks
 pub fn decrypt_data_chunked(
+    file_data_id: &str,
     encrypted_data: &[u8],
     password: &str
 ) -> std::io::Result<Vec<u8>> {
 
     // Anahtarları yükle
-    let key_data = load_and_decrypt_key( password)?;
+    let key_data = load_and_decrypt_key( password,file_data_id)?;
 
     // Verify the HMAC
     if encrypted_data.len() < HMAC_LENGTH {
@@ -251,14 +256,14 @@ pub fn decrypt_data_chunked(
 }
 
 
-pub fn encrypt_file(file_path: &str, output_path: &str, password: &str) -> std::io::Result<()> {
+pub fn encrypt_file(file_id: &str,file_path: &str, output_path: &str, password: &str) -> std::io::Result<()> {
      // Anahtarları yükle veya oluştur
-    let key_data = match load_and_decrypt_key( password) {
+    let key_data = match load_and_decrypt_key( password,file_id) {
         Ok(key_data) => key_data,
         Err(_) => {
             // Anahtar bulunamazsa yeni bir anahtar oluştur ve kaydet
             let new_key_data = generate_key_iv();
-            save_key_locally(&new_key_data, password)?;
+            save_encrypted_key_to_store(&new_key_data, password,file_id)?;
             new_key_data
         }
     };
@@ -290,9 +295,9 @@ pub fn encrypt_file(file_path: &str, output_path: &str, password: &str) -> std::
 
 
 // Decrypt the file with key from the key manager
-pub fn decrypt_file(file_path: &str, output_path: &str, password: &str) -> std::io::Result<()> {
+pub fn decrypt_file(file_id: &str,file_path: &str, output_path: &str, password: &str) -> std::io::Result<()> {
     // Load and decrypt the key using the password
-    let key_data = load_and_decrypt_key(password)?;
+    let key_data = load_and_decrypt_key(password,file_id)?;
 
     let mut file = File::open(file_path)?;
     let mut encrypted_data = Vec::new();
@@ -334,15 +339,15 @@ pub fn decrypt_file(file_path: &str, output_path: &str, password: &str) -> std::
 
 
 
-pub fn encrypt_data(file_data: &[u8],password: &str) -> std::io::Result<Vec<u8>> {
+pub fn encrypt_data(file_data_id: &str,file_data: &[u8],password: &str) -> std::io::Result<Vec<u8>> {
   
      // Anahtarları yükle veya oluştur
-     let key_data = match load_and_decrypt_key(password) {
+     let key_data = match load_and_decrypt_key(password,file_data_id) {
         Ok(key_data) => key_data,
         Err(_) => {
             // Anahtar bulunamazsa yeni bir anahtar oluştur ve kaydet
             let new_key_data = generate_key_iv();
-            save_key_locally(&new_key_data, password)?;
+            save_encrypted_key_to_store(&new_key_data, password,file_data_id)?;
             new_key_data
         }
     };
@@ -360,10 +365,10 @@ pub fn encrypt_data(file_data: &[u8],password: &str) -> std::io::Result<Vec<u8>>
 
 
 
-pub fn decrypt_data(encrypted_data: &[u8], password: &str) -> std::io::Result<Vec<u8>> {
+pub fn decrypt_data(file_data_id: &str,encrypted_data: &[u8], password: &str) -> std::io::Result<Vec<u8>> {
 
     // Anahtarları yükle
-    let key_data = load_and_decrypt_key( password)?;
+    let key_data = load_and_decrypt_key( password,file_data_id)?;
     
     // HMAC'ı kontrol etme
     if encrypted_data.len() < 32 {

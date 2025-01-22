@@ -2,35 +2,34 @@ use jsonwebtoken::{encode, decode, Header, Validation, EncodingKey, DecodingKey}
 use serde::{Serialize, Deserialize};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-//jwt ile token oluşturma ve doğrulama işlemleri
-
-
-
+// JWT için kullanılan Claim yapısı
 #[derive(Serialize, Deserialize)]
 pub struct Claims {
     pub sub: String, // Kullanıcı bilgisi
-    pub exp: usize,  // Expiration (geçerlilik süresi)
+    pub exp: u64,    // Expiration (geçerlilik süresi)
 }
 
+// TokenManager yapısı, JWT işlemleri için kullanılan servis
 pub struct TokenManager {
     secret: String, // JWT için kullanılan gizli anahtar
 }
 
 impl TokenManager {
+    // Yeni TokenManager oluştur
     pub fn new(secret: String) -> Self {
         TokenManager { secret }
     }
 
     // Token oluştur
-    pub fn create_token(&self, user_id: &str) -> String {
+    pub fn create_token(&self, user_id: &str) -> Result<String, String> {
         let expiration = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs() + 3600; //1 saat geçerli olacak
+            .map_err(|_| "SystemTime error".to_string())?
+            .as_secs() + 3600; // 1 saat geçerli olacak
 
         let claims = Claims {
             sub: user_id.to_string(),
-            exp: expiration as usize,
+            exp: expiration,
         };
 
         let header = Header::default();
@@ -38,37 +37,17 @@ impl TokenManager {
             &header,
             &claims,
             &EncodingKey::from_secret(self.secret.as_ref()),
-        )
-        .unwrap()
+        ).map_err(|_| "Token encoding error".to_string()) // Hata yönetimi
     }
 
     // Token doğrula
-    pub fn validate_token(&self, token: &str) -> bool {
+    pub fn validate_token(&self, token: &str) -> Result<bool, String> {
         let decoding_key = DecodingKey::from_secret(self.secret.as_ref());
         let validation = Validation::default();
+        
         match decode::<Claims>(token, &decoding_key, &validation) {
-            Ok(_) => true,
-            Err(_) => false,
+            Ok(_) => Ok(true),
+            Err(_) => Ok(false),
         }
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-/*Kullanıcı giriş yaptığında bir token oluşturulur
-Bu token kullanıcıya verilir
-Kullanıcı her istek yaptığında bu token'ı gönderir
-Sunucu token'ı doğrulayarak kullanıcının kimliğini teyit eder
-
-Her token 1 saat geçerli kalacak şekilde ayarlanmış ve güvenli bir şekilde şifrelenmiş durumda. */

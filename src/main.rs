@@ -1,7 +1,7 @@
 mod p2p;
 use encryption::{encrypt_file_chunked, decrypt_file_chunked,encrypt_data_chunked,decrypt_data_chunked};
 use ethers::core::k256::elliptic_curve::rand_core::le;
-use key_management::{generate_key_iv, load_and_decrypt_key, save_key_locally};
+use key_management::{generate_key_iv, load_and_decrypt_key, save_encrypted_key_to_store};
 use libp2p::core::network;
 use p2p::{find_available_node, Network, Node};
 use pkcs7::encrypted_data_content;
@@ -30,7 +30,7 @@ use tokio::net::TcpListener;
 
 
 mod storage_api;
-use storage_api::StorageAPI;
+use storage_api::{wait_for_peers, StorageAPI};
 
 use futures::future::ok;
 
@@ -48,9 +48,15 @@ use std::error::Error;
 
 use tokio;
 use std::env;
+use std::fs;
+use std::io;
+
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Define the storage path and server address for this node
+    let storage_path = "C:/Users/melisates/Documents/storage.jpg";
+
     // Komut satırı argümanlarını al
     let args: Vec<String> = env::args().collect();
     if args.len() != 2 {
@@ -58,60 +64,217 @@ async fn main() {
         std::process::exit(1);
     }
 
-    let addr: std::net::SocketAddr = args[1].parse().expect("Invalid address");
+    let server_addr: std::net::SocketAddr = args[1].parse().expect("Invalid address");
 
-    let network: Arc<Network> = Arc::new(Network::new());
 
-    // Statik olarak tanımlanmış başlangıç düğümleri
-    let static_peers = vec![
-        "127.0.0.1:8081".parse().unwrap(),
-        "127.0.0.1:8082".parse().unwrap(),
+
+    // Define initial peers for the P2P network
+    let initial_peers = vec![
+        "127.0.0.1:8081".parse::<SocketAddr>()?,
+        "127.0.0.1:8082".parse::<SocketAddr>()?,
+        "127.0.0.1:8083".parse::<SocketAddr>()?,
     ];
 
-    let network_clone = Arc::clone(&network);
+    // Initialize the StorageAPI
+    println!("Initializing StorageAPI...");
+    let storage_api = StorageAPI::new(storage_path, server_addr, initial_peers).await?;
+    println!("{:?}",storage_api.list_nodes().await?);
+    println!("Waiting for peers to connect...");
+    wait_for_peers(&storage_api, 20).await?;
 
-    // Mevcut düğümleri kontrol et
-    let x = network_clone.get_nodes().await;
-    println!("Current nodes: {:?}", x);
-
-    // // Peer keşfini başlat
-    // tokio::spawn(async move {
-    //     network.discover_peers(static_peers).await;
-    // });
-
-    // // Sunucuyu başlat
-    // tokio::spawn(async move {
-    //     if let Err(e) = network_clone.start_server(addr).await {
-    //         eprintln!("Server error: {:?}", e);
-    //     }
-    // });
-
-    let runtime = Runtime::new().unwrap();
+    let nodes = storage_api.list_nodes().await?;
+    println!("Connected to {} peers", nodes.len());
     
-    // Start the server and periodic peer update concurrently
-    {
-        let network = Arc::clone(&network);
-        let addr = addr.clone();
-        runtime.spawn(async move {
-            network.start_server(addr).await.unwrap();
-        });
+    if nodes.is_empty() {
+        println!("Warning: No peers available, some operations may fail");
     }
 
-    {
-        let network = Arc::clone(&network);
-        runtime.spawn(async move {
-            network.periodic_peer_update(static_peers).await;
-        });
+    // Example: Upload a file
+    let file_path = "C:/Users/melisates/Documents/WhatsApp Image 2024-12-01 at 14.40.49_48a551a2.jpg";
+    let owner = "user123";
+    let encryption_password = "your-secure-password";
+
+    println!("Uploading file...");
+    match storage_api.upload_file(file_path, owner, encryption_password).await {
+        Ok(file_id) => println!("File uploaded successfully. File ID: {}", file_id),
+        Err(e) => {
+            eprintln!("Failed to upload file: {:?}", e);
+            // Print available nodes for debugging
+            println!("\nAvailable nodes:");
+            for node in storage_api.list_nodes().await? {
+                println!("Node ID: {}, Address: {}, Available Space: {}", 
+                    node.id, node.address, node.available_space);
+            }
+        }
     }
 
 
+    // List available nodes
+    println!("\nListing available nodes:");
+    match storage_api.list_nodes().await {
+        Ok(nodes) => {
+            for node in nodes {
+                println!("Node ID: {}, Address: {}, Available Space: {} bytes", 
+                    node.id, node.address, node.available_space);
+            }
+        }
+        Err(e) => eprintln!("Failed to list nodes: {:?}", e),
+    }
 
+    // List stored files
+    println!("\nListing stored files:");
+    match storage_api.list_files().await {
+        Ok(files) => {
+            for file in files {
+                println!("File ID: {}, Name: {}, Owner: {}, Size: {} bytes",
+                    file.file_id, file.file_name, file.owner, file.file_size);
+            }
+        }
+        Err(e) => eprintln!("Failed to list files: {:?}", e),
+    }
 
-    // Programın açık kalması için beklet
-    tokio::signal::ctrl_c().await.unwrap();
+    // Keep the main thread running
+    println!("\nServer running. Press Ctrl+C to exit.");
+    tokio::signal::ctrl_c().await?;
     println!("Shutting down...");
-    
+
+    Ok(())
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+////*********************key_management deneme******************************************************************* */
+// fn main() -> io::Result<()> {
+//     // Example usage:
+//     let password = "pass2o3rrd";
+//     let file_id = "file1.6";
+
+//     // Generate key data
+//     let key_data = generate_key_iv();
+//     println!("KeyData: {:?}", key_data);
+
+//     // Save the encrypted key to the key store (JSON file)
+//     let s= save_encrypted_key_to_store(&key_data, password, file_id)?;
+//     println!("Encrypted KeyData saved to the key store.");
+//     println!("{:?}", s);
+
+//     // Load and decrypt the key
+//     let decrypted_key_data = load_and_decrypt_key(password, file_id)?;
+//     println!("Decrypted KeyData: {:?}", decrypted_key_data);
+
+//     Ok(())
+// }
+//****************************************************************************************************** */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//*********************p2p deneme******************************************************************* */
+// #[tokio::main]
+// async fn main() {
+//     // Komut satırı argümanlarını al
+//     let args: Vec<String> = env::args().collect();
+//     if args.len() != 2 {
+//         eprintln!("Usage: {} <address>", args[0]);
+//         std::process::exit(1);
+//     }
+
+//     let addr: std::net::SocketAddr = args[1].parse().expect("Invalid address");
+
+//     let network: Arc<Network> = Arc::new(Network::new());
+
+//     // Statik olarak tanımlanmış başlangıç düğümleri
+//     let static_peers = vec![
+//         "127.0.0.1:8081".parse().unwrap(),
+//         "127.0.0.1:8082".parse().unwrap(),
+//     ];
+
+//     let network_clone = Arc::clone(&network);
+
+//     // Mevcut düğümleri kontrol et
+//     let x = network_clone.get_nodes().await;
+//     println!("Current nodes: {:?}", x);
+
+//     // // Peer keşfini başlat
+//     // tokio::spawn(async move {
+//     //     network.discover_peers(static_peers).await;
+//     // });
+
+//     // // Sunucuyu başlat
+//     // tokio::spawn(async move {
+//     //     if let Err(e) = network_clone.start_server(addr).await {
+//     //         eprintln!("Server error: {:?}", e);
+//     //     }
+//     // });
+
+//     let runtime = Runtime::new().unwrap();
+    
+//     // Start the server and periodic peer update concurrently
+//     {
+//         let network = Arc::clone(&network);
+//         let addr = addr.clone();
+//         runtime.spawn(async move {
+//             network.start_server(addr).await.unwrap();
+//         });
+//     }
+
+//     {
+//         let network = Arc::clone(&network);
+//         runtime.spawn(async move {
+//             network.periodic_peer_update(static_peers).await;
+//         });
+//     }
+
+
+
+
+//     // Programın açık kalması için beklet
+//     tokio::signal::ctrl_c().await.unwrap();
+//     println!("Shutting down...");
+    
+// }
+//********************************************************************************************************************** */
 
 
     // // Get the storage path from the environment or define it

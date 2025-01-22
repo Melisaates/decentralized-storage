@@ -52,14 +52,13 @@ pub fn store_file(
 
     println!("File successfully stored at {}, hash: {}", file_path.display(), file_hash);
 
-    // Store the file hash along with node_id in a registry or database (optional)
+    // Store the file hash along with node_id in a registry 
     store_file_hash(file_hash, node_id);
 
     Ok(())
 }
 
 pub fn store_file_hash(file_hash: String, node_id: &str) {
-    // In a real decentralized system, the hash and node_id should be stored in a distributed registry
     println!("Storing hash for file on node {}: {}", node_id, file_hash);
 }
 

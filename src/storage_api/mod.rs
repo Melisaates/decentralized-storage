@@ -1,26 +1,28 @@
 use crate::encryption::{decrypt_file_chunked, encrypt_file_chunked, split_file};
-use crate::p2p::{Network, Node, find_available_node};
+use crate::p2p::{find_available_node, Network, Node};
 use crate::proof_of_spacetime::periodic_check;
 use crate::storage::{can_store_file, store_chunk_on_node, store_file};
+use chrono::{Duration, Utc};
+use libp2p::core::network;
+use sha2::{Digest, Sha256};
+use std::collections::HashMap;
+use std::net::SocketAddr;
 use std::path::Path;
 use std::sync::Arc;
-use std::net::SocketAddr;
+use tokio::runtime::Runtime;
 use tokio::sync::Mutex;
-use std::collections::HashMap;
 use uuid::Uuid;
-use chrono::{Duration, Utc};
-use sha2::{Sha256, Digest};
 
 // Dosya metadata yapısı
 #[derive(Clone, Debug)]
 pub struct FileMetadata {
-    file_id: String,
-    file_name: String,
-    node_id: String,
-    file_size: u64,
+    pub file_id: String,
+    pub file_name: String,
+    pub node_id: String,
+    pub file_size: u64,
     chunks: Vec<ChunkInfo>,
     timestamp: u64, // Dosyanın yüklendiği zaman
-    owner: String,
+    pub owner: String,
 }
 
 // Chunk bilgisi yapısı
@@ -46,49 +48,60 @@ pub struct StorageAPI {
 }
 
 impl StorageAPI {
-    // Yeni bir StorageAPI örneği oluşturur
-    pub async fn new(storage_path: &str, server_addr: &str) -> Result<Self, Box<dyn std::error::Error>> {
+    pub async fn new(
+        storage_path: &str,
+        server_addr: SocketAddr,
+        initial_peers: Vec<SocketAddr>,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
+        //create a new network
         let network = Arc::new(Network::new());
-        let addr: SocketAddr = server_addr.parse()?;
 
-        // Ağı başlat
+        let node = Node {
+            id: Uuid::new_v4().to_string(),
+            storage_path: storage_path.to_string(),
+            available_space: 1024 * 1024 * 1024, // 1GB storage space
+            address: "127.0.0.1:8081".to_string(),
+        };
+
+        let node2 = Node {
+            id: Uuid::new_v4().to_string(),
+            storage_path: storage_path.to_string(),
+            available_space: 1024 * 1024 * 1024, // 1GB storage space
+            address: "127.0.0.1:8082".to_string()
+        };
+
+        let node3 = Node {
+            id: Uuid::new_v4().to_string(),
+            storage_path: storage_path.to_string(),
+            available_space: 1024 * 1024 * 1024, // 1GB storage space
+            address: "127.0.0.1:8083".to_string()
+        };
+        network.add_node(node);
+        network.add_node(node2);
+        network.add_node(node3);
+
+
         let network_clone = Arc::clone(&network);
+        let network_clone2 = Arc::clone(&network);
+
+        // Start the server
         tokio::spawn(async move {
-            if let Err(e) = network_clone.start_server(addr).await {
-                eprintln!("Server error: {:?}", e);
+            if let Err(e) = network_clone.start_server(server_addr).await {
+                eprintln!("Failed to start server: {:?}", e);
             }
         });
 
-        // // Ağda düğümler oluşturuluyor
-        // let node1 = Node {
-        //     id: "node1".to_string(),
-        //     storage_path: "/data/node1".to_string(),
-        //     available_space: 1000000,
-        //     address: "127.0.0.1:8001".to_string(),
-        // };
-        // network.add_node(node1.clone()).await;
 
-        // let node2 = Node {
-        //     id: "node2".to_string(),
-        //     storage_path: "/data/node2".to_string(),
-        //     available_space: 2000000,
-        //     address: "127.0.0.1:8002".to_string(),
-        // };
-        // network.add_node(node2.clone()).await;
-
-        // let node3 = Node {
-        //     id: "node3".to_string(),
-        //     storage_path: "/data/node3".to_string(),
-        //     available_space: 3000000,
-        //     address: "127.0.0.1:8003".to_string(),
-        // };
-        // network.add_node(node3.clone()).await;
-
-        // Zamanlı kontrol işlemini başlat
-        let storage_path_clone = storage_path.to_string();
+        // Discover peers
         tokio::spawn(async move {
-            periodic_check(&storage_path_clone).await;
+            network_clone2.periodic_peer_update(initial_peers).await;
         });
+
+        // // Zamanlı kontrol işlemini başlat
+        // let storage_path_clone = storage_path.to_string();
+        // tokio::spawn(async move {
+        //     periodic_check(&storage_path_clone).await;
+        // });
 
         Ok(Self {
             network,
@@ -104,7 +117,8 @@ impl StorageAPI {
         owner: &str,
         encryption_password: &str,
     ) -> Result<String, Box<dyn std::error::Error>> {
-        // 1. Dosya bilgilerini al
+        
+        // Create a new file metadata
         let file_size = std::fs::metadata(file_path)?.len();
         let file_id = Uuid::new_v4().to_string();
         let file_name = Path::new(file_path)
@@ -114,35 +128,49 @@ impl StorageAPI {
             .ok_or("Failed to convert file name to string")?
             .to_string();
 
-        // 2. Yeterli alana sahip düğümü bul
+        // find available node
         let nodes = self.network.get_nodes().await;
+        
         let node_id = can_store_file(&nodes, file_size)
             .await
             .ok_or("No node found with enough storage space")?;
-        let selected_node = nodes.iter().find(|n| n.id == node_id).ok_or("Node not found")?;
+        // selected node is the node that has enough space to store the file
+        let selected_node = nodes
+            .iter()
+            .find(|n| n.id == node_id)
+            .ok_or("Node not found")?;
 
-        // 3. Dosyayı şifrele ve chunk'lara ayır
+        // Separate the file into chunks and encrypt
         let encrypted_path = "C:/Users/melisates/Documents/encrypted_file.jpg";
-        encrypt_file_chunked(file_path, &encrypted_path, encryption_password)?;
+        encrypt_file_chunked(&file_id, file_path, &self.storage_path, encryption_password)?;
         let chunks = split_file(&encrypted_path, 1024 * 1024); // 1MB chunk boyutu
         let mut chunk_infos = Vec::new();
 
-        // 4. Chunk'ları her bir düğüme kaydet ve paylaş
+        // 4. Save and share chunks on each node
         for chunk_data in chunks.iter() {
-            // Ağdaki düğümleri al
+            // Get nodes in the network
             let nodes = self.network.get_nodes().await;
 
-            // Uygun bir düğüm bul
+            // Find a node that can store the chunk
             if let Some(node_id) = can_store_file(&nodes, chunk_data.len() as u64).await {
-                // Düğüm bilgilerini bul
+                // Find the selected node
                 let selected_node = nodes.iter().find(|node| node.id == node_id).unwrap();
 
-                // Chunk'ı düğüme kaydet
-                store_file(chunk_data, &selected_node.storage_path, &file_name, &node_id)?;
+                // Store the chunk data on the selected node
+                store_file(
+                    chunk_data,
+                    &selected_node.storage_path,
+                    &format!("{}{}", file_name, node_id),
+                    &node_id,
+                )?;
 
-                // Chunk verisini merkeziyetsiz ağda paylaş (retry mekanizması ile)
-                if let Err(e) = store_chunk_on_node_with_retry(chunk_data, &selected_node, 3).await {
-                    eprintln!("Failed to store chunk on node {} after retries: {:?}", selected_node.id, e);
+                // Share the chunk with the network
+                if let Err(e) = store_chunk_on_node_with_retry(chunk_data, &selected_node, 3).await
+                {
+                    eprintln!(
+                        "Failed to store chunk on node {} after retries: {:?}",
+                        selected_node.id, e
+                    );
                     return Err(e);
                 }
 
@@ -191,50 +219,103 @@ pub async fn store_chunk_on_node_with_retry(
             Ok(_) => return Ok(()), // Success
             Err(e) => {
                 last_error = Some(e.to_string().into());
-                eprintln!("Attempt {}: Failed to store chunk on node {}: {:?}", attempt, selected_node.id, e);
+                eprintln!(
+                    "Attempt {}: Failed to store chunk on node {}: {:?}",
+                    attempt, selected_node.id, e
+                );
             }
         }
         tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
     }
 
-    Err(last_error.unwrap_or_else(|| Box::new(std::io::Error::new(std::io::ErrorKind::Other, "Unknown error"))))
+    Err(last_error.unwrap_or_else(|| {
+        Box::new(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "Unknown error",
+        ))
+    }))
 }
 
+pub async fn wait_for_peers(storage_api: &StorageAPI, timeout_seconds: u64) -> Result<(), Box<dyn std::error::Error>> {
+    let start_time = std::time::Instant::now();
+    let timeout_duration = std::time::Duration::from_secs(timeout_seconds);
+    let min_peers = 2;
 
+    while start_time.elapsed() < timeout_duration {
+        let nodes = storage_api.list_nodes().await?;
+        println!("Current connected peers: {} with details:", nodes.len());
+        
+        // Print details of each connected node
+        for node in &nodes {
+            println!("  - Node ID: {}, Address: {}", node.id, node.address);
+        }
+        
+        if nodes.len() >= min_peers {
+            println!("Successfully connected to {} peers", nodes.len());
+            return Ok(());
+        }
+        
+        // Add some initial nodes if none are present
+        if nodes.is_empty() {
+            println!("No nodes found, adding initial nodes...");
+            let initial_nodes = vec![
+                Node {
+                    id: Uuid::new_v4().to_string(),
+                    storage_path: format!("{}/node1", storage_api.storage_path),
+                    available_space: 1024 * 1024 * 1024, // 1GB
+                    address: "127.0.0.1:8081".to_string(),
+                },
+                Node {
+                    id: Uuid::new_v4().to_string(),
+                    storage_path: format!("{}/node2", storage_api.storage_path),
+                    available_space: 1024 * 1024 * 1024, // 1GB
+                    address: "127.0.0.1:8082".to_string(),
+                },
+            ];
 
+            for node in initial_nodes {
+                storage_api.network.add_node(node).await;
+            }
+        }
+        
+        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+    }
 
+    // Instead of returning error, return Ok with a warning
+    println!("Warning: Timeout reached, but proceeding with {} available peers", 
+        storage_api.list_nodes().await?.len());
+    Ok(())
+}
 
-    // // Dosyayı ağdan indirir
-    // pub async fn download_file(
-    //     &self,
-    //     file_id: &str,
-    //     destination: &str,
-    //     encryption_password: &str,
-    // ) -> Result<(), Box<dyn std::error::Error>> {
-    //     let index = self.file_index.lock().await;
-    //     let metadata = index.get(file_id)
-    //         .ok_or("File not found")?;
+// // Dosyayı ağdan indirir
+// pub async fn download_file(
+//     &self,
+//     file_id: &str,
+//     destination: &str,
+//     encryption_password: &str,
+// ) -> Result<(), Box<dyn std::error::Error>> {
+//     let index = self.file_index.lock().await;
+//     let metadata = index.get(file_id)
+//         .ok_or("File not found")?;
 
-    //     // 2. Retrieve chunks from nodes
-    //     let mut chunks = Vec::new();
-    //     for chunk_info in &metadata.chunks {
-    //         let chunk_data = retrieve_chunk_from_node(&chunk_info.node_id, &chunk_info.chunk_id).await?;
-            
-    //         // Verify chunk integrity
-    //         let chunk_hash = calculate_hash(&chunk_data);
-    //         if chunk_hash != chunk_info.hash {
-    //             return Err("Chunk bütünlüğü doğrulanamadı".into());
-    //         }
-            
-    //         chunks.push(chunk_data);
-    //     }
+//     // 2. Retrieve chunks from nodes
+//     let mut chunks = Vec::new();
+//     for chunk_info in &metadata.chunks {
+//         let chunk_data = retrieve_chunk_from_node(&chunk_info.node_id, &chunk_info.chunk_id).await?;
 
-    //     // 3. Merge chunks and decrypt
-    //     let encrypted_path = format!("{}_encrypted", destination);
-    //     merge_chunks(&chunks, &encrypted_path)?;
-    //     decrypt_file_chunked(&encrypted_path, destination, encryption_password)?;
+//         // Verify chunk integrity
+//         let chunk_hash = calculate_hash(&chunk_data);
+//         if chunk_hash != chunk_info.hash {
+//             return Err("Chunk bütünlüğü doğrulanamadı".into());
+//         }
 
-    //     Ok(())
-    // }
+//         chunks.push(chunk_data);
+//     }
 
-  
+//     // 3. Merge chunks and decrypt
+//     let encrypted_path = format!("{}_encrypted", destination);
+//     merge_chunks(&chunks, &encrypted_path)?;
+//     decrypt_file_chunked(&encrypted_path, destination, encryption_password)?;
+
+//     Ok(())
+// }
