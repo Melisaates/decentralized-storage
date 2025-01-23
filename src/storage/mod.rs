@@ -10,7 +10,7 @@ use tokio::time::timeout;
 use anyhow::Error;
 
 pub fn store_file(
-    encrypted_data_content: &[u8],
+    encrypted_data_content: &[u8], 
     node_storage_path: &str,
     file_name: &str,
     node_id: &str,
@@ -68,7 +68,7 @@ pub async fn can_store_file(
 ) -> Option<String> {
     // Return the ID of the node that can store the file
     for node in nodes {
-        let storage_dir = Path::new(&node.storage_path);
+        let storage_dir: &Path = Path::new(&node.storage_path);
         println!("Checking storage for node: {}", node.id);
 
         // If the directory doesn't exist, create it

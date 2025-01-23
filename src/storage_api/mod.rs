@@ -2,6 +2,7 @@ use crate::encryption::{decrypt_file_chunked, encrypt_file_chunked, split_file};
 use crate::p2p::{find_available_node, Network, Node};
 use crate::proof_of_spacetime::periodic_check;
 use crate::storage::{can_store_file, store_chunk_on_node, store_file};
+use actix_web::body::MessageBody;
 use chrono::{Duration, Utc};
 use libp2p::core::network;
 use sha2::{Digest, Sha256};
@@ -56,29 +57,29 @@ impl StorageAPI {
         //create a new network
         let network = Arc::new(Network::new());
 
-        let node = Node {
-            id: Uuid::new_v4().to_string(),
-            storage_path: storage_path.to_string(),
-            available_space: 1024 * 1024 * 1024, // 1GB storage space
-            address: "127.0.0.1:8081".to_string(),
-        };
+        // let node = Node {
+        //     id: Uuid::new_v4().to_string(),
+        //     storage_path: storage_path.to_string(),
+        //     available_space: 1024 * 1024 * 1024, // 1GB storage space
+        //     address: "127.0.0.1:8084".to_string(),
+        // };
 
-        let node2 = Node {
-            id: Uuid::new_v4().to_string(),
-            storage_path: storage_path.to_string(),
-            available_space: 1024 * 1024 * 1024, // 1GB storage space
-            address: "127.0.0.1:8082".to_string()
-        };
+        // let node2 = Node {
+        //     id: Uuid::new_v4().to_string(),
+        //     storage_path: storage_path.to_string(),
+        //     available_space: 1024 * 1024 * 1024, // 1GB storage space
+        //     address: "127.0.0.1:8085".to_string()
+        // };
 
-        let node3 = Node {
-            id: Uuid::new_v4().to_string(),
-            storage_path: storage_path.to_string(),
-            available_space: 1024 * 1024 * 1024, // 1GB storage space
-            address: "127.0.0.1:8083".to_string()
-        };
-        network.add_node(node);
-        network.add_node(node2);
-        network.add_node(node3);
+        // let node3 = Node {
+        //     id: Uuid::new_v4().to_string(),
+        //     storage_path: storage_path.to_string(),
+        //     available_space: 1024 * 1024 * 1024, // 1GB storage space
+        //     address: "127.0.0.1:8086".to_string()
+        // };
+        // network.add_node(node);
+        // network.add_node(node2);
+        // network.add_node(node3);
 
 
         let network_clone = Arc::clone(&network);
@@ -142,19 +143,22 @@ impl StorageAPI {
 
         // Separate the file into chunks and encrypt
         let encrypted_path = "C:/Users/melisates/Documents/encrypted_file.jpg";
-        encrypt_file_chunked(&file_id, file_path, &self.storage_path, encryption_password)?;
+        // if !Path::new(&encrypted_path).exists() {
+        //     return Err("Encrypted file was not created.".into());
+        // }
+        encrypt_file_chunked(&file_id, file_path, encrypted_path, encryption_password)?;
         let chunks = split_file(&encrypted_path, 1024 * 1024); // 1MB chunk boyutu
         let mut chunk_infos = Vec::new();
 
         // 4. Save and share chunks on each node
         for chunk_data in chunks.iter() {
             // Get nodes in the network
-            let nodes = self.network.get_nodes().await;
+            let mut nodes = self.network.get_nodes().await;
 
             // Find a node that can store the chunk
             if let Some(node_id) = can_store_file(&nodes, chunk_data.len() as u64).await {
                 // Find the selected node
-                let selected_node = nodes.iter().find(|node| node.id == node_id).unwrap();
+                let selected_node = nodes.iter_mut().find(|node| node.id == node_id).unwrap();
 
                 // Store the chunk data on the selected node
                 store_file(
@@ -163,6 +167,9 @@ impl StorageAPI {
                     &format!("{}{}", file_name, node_id),
                     &node_id,
                 )?;
+
+                selected_node.available_space -= chunk_data.len() as u64;
+
 
                 // Share the chunk with the network
                 if let Err(e) = store_chunk_on_node_with_retry(chunk_data, &selected_node, 3).await
@@ -173,6 +180,8 @@ impl StorageAPI {
                     );
                     return Err(e);
                 }
+
+
 
                 // Chunk bilgilerini sakla
                 chunk_infos.push(ChunkInfo {
@@ -255,28 +264,28 @@ pub async fn wait_for_peers(storage_api: &StorageAPI, timeout_seconds: u64) -> R
             return Ok(());
         }
         
-        // Add some initial nodes if none are present
-        if nodes.is_empty() {
-            println!("No nodes found, adding initial nodes...");
-            let initial_nodes = vec![
-                Node {
-                    id: Uuid::new_v4().to_string(),
-                    storage_path: format!("{}/node1", storage_api.storage_path),
-                    available_space: 1024 * 1024 * 1024, // 1GB
-                    address: "127.0.0.1:8081".to_string(),
-                },
-                Node {
-                    id: Uuid::new_v4().to_string(),
-                    storage_path: format!("{}/node2", storage_api.storage_path),
-                    available_space: 1024 * 1024 * 1024, // 1GB
-                    address: "127.0.0.1:8082".to_string(),
-                },
-            ];
+        // // Add some initial nodes if none are present
+        // if nodes.is_empty() {
+        //     println!("No nodes found, adding initial nodes...");
+        //     let initial_nodes = vec![
+        //         Node {
+        //             id: Uuid::new_v4().to_string(),
+        //             storage_path: format!("{}/node1", storage_api.storage_path),
+        //             available_space: 1024 * 1024 * 1024, // 1GB
+        //             address: "127.0.0.1:8084".to_string(),
+        //         },
+        //         Node {
+        //             id: Uuid::new_v4().to_string(),
+        //             storage_path: format!("{}/node2", storage_api.storage_path),
+        //             available_space: 1024 * 1024 * 1024, // 1GB
+        //             address: "127.0.0.1:8085".to_string(),
+        //         },
+        //     ];
 
-            for node in initial_nodes {
-                storage_api.network.add_node(node).await;
-            }
-        }
+        //     for node in initial_nodes {
+        //         storage_api.network.add_node(node).await;
+        //     }
+        //}
         
         tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
     }

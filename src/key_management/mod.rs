@@ -107,7 +107,7 @@ pub fn save_encrypted_key_to_store(key_data: &KeyData, password: &str, file_id: 
     // If the key does not exist, insert the new encrypted key
     key_store.insert(file_id.to_string(), encrypted_key);
     println!("Key saved for file ID: '{}'", file_id);
-    println!(" {:?} ",key_store);
+    println!(" {:?} ",key_store.get(file_id));
 
     // Save the updated key store to the file
     save_key_store(&key_store)

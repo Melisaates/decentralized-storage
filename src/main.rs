@@ -5,7 +5,8 @@ use key_management::{generate_key_iv, load_and_decrypt_key, save_encrypted_key_t
 use libp2p::core::network;
 use p2p::{find_available_node, Network, Node};
 use pkcs7::encrypted_data_content;
-use storage::{can_store_file, store_chunk_on_node, store_file}; // To connect to the P2P network
+use storage::{can_store_file, store_chunk_on_node, store_file};
+use uuid::Uuid; // To connect to the P2P network
 //mod blockchain;
 // use blockchain::{BscClient}; 
 // Communication with Binance Smart Chain
@@ -15,6 +16,7 @@ mod storage;
 use std::fs::File;
 use std::io::Read;
 use std::net::SocketAddr;
+use std::path::Path;
 use std::process;
 use std::sync::Arc;
 use tokio::task;
@@ -23,7 +25,6 @@ use std::time::Duration;
 mod proof_of_spacetime;
 use proof_of_spacetime::periodic_check;
 use tokio::time::{sleep};
-
 
 use tokio::sync::Mutex;
 use tokio::net::TcpListener;
@@ -54,8 +55,7 @@ use std::io;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Define the storage path and server address for this node
-    let storage_path = "C:/Users/melisates/Documents/storage.jpg";
+ 
 
     // Komut satırı argümanlarını al
     let args: Vec<String> = env::args().collect();
@@ -67,7 +67,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let server_addr: std::net::SocketAddr = args[1].parse().expect("Invalid address");
 
 
-
     // Define initial peers for the P2P network
     let initial_peers = vec![
         "127.0.0.1:8081".parse::<SocketAddr>()?,
@@ -77,7 +76,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Initialize the StorageAPI
     println!("Initializing StorageAPI...");
-    let storage_api = StorageAPI::new(storage_path, server_addr, initial_peers).await?;
+    let storage_path = env::var("STORAGE_PATH").unwrap_or_else(|_| "storage/".to_string());
+    if !Path::new(&storage_path).exists() {
+        return Err("Storage path does not exist.".into());
+    }
+    let storage_api = StorageAPI::new(&storage_path, server_addr, initial_peers).await?;
     println!("{:?}",storage_api.list_nodes().await?);
     println!("Waiting for peers to connect...");
     wait_for_peers(&storage_api, 20).await?;
@@ -98,7 +101,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     match storage_api.upload_file(file_path, owner, encryption_password).await {
         Ok(file_id) => println!("File uploaded successfully. File ID: {}", file_id),
         Err(e) => {
-            eprintln!("Failed to upload file: {:?}", e);
+            eprintln!("Failed to upload file: {:?} at {:?}", e, file_path);
             // Print available nodes for debugging
             println!("\nAvailable nodes:");
             for node in storage_api.list_nodes().await? {

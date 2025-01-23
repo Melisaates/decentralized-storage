@@ -8,14 +8,18 @@ use tokio::net::TcpStream;
 use tokio::sync::Mutex;
 use tokio::time::{sleep, Duration};
 
+use crate::storage;
+
 #[derive(Clone, Serialize, Deserialize, Debug)]
 // address : IP address of the node
 //storage_path : Path to the storage directory
 pub struct Node {
     pub id: String, //unique identifier
     pub storage_path: String,
-    pub available_space: u64,
     pub address: String,
+    pub total_space: u64,
+    pub available_space: u64,
+
 }
 
 // Network struct that holds the nodes
@@ -212,6 +216,18 @@ impl Network {
 
     // This function is used to periodically update the peer list
     pub async fn periodic_peer_update(&self, initial_peers: Vec<SocketAddr>) {
+
+        let initial_peers_clone = initial_peers.clone();
+        for peer in initial_peers_clone {
+            self.add_node(Node {
+                id: peer.to_string(),
+                storage_path: std::env::var("STORAGE_PATH").unwrap_or_else(|_| "default/path".to_string()),
+                total_space: 1000000000,
+                available_space: 1000000000,
+                address: peer.to_string(),
+            }).await;    
+        }
+
         let mut interval = tokio::time::interval(Duration::from_secs(30)); // 30 saniyede bir
         loop {
             interval.tick().await;
