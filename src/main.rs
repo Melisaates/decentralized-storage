@@ -93,7 +93,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Example: Upload a file
-    let file_path = "C:/Users/melisates/Documents/WhatsApp Image 2024-12-01 at 14.40.49_48a551a2.jpg";
+    let file_path = "C:/Users/melisates/Downloads/1. Algorithms and Computation.mp4";
     let owner = "user123";
     let encryption_password = "your-secure-password";
 

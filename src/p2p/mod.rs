@@ -21,6 +21,25 @@ pub struct Node {
     pub available_space: u64,
 
 }
+impl Node {
+    pub fn new(id: String, storage_path: String, address: String, total_space: u64) -> Self {
+        Node {
+            id,
+            storage_path,
+            address,
+            total_space,
+            available_space: total_space,
+        }
+    }
+    pub fn update_available_space(&mut self, file_size: u64) {
+        // Dosya boyutu kadar kullanılabilir alanı günceller
+        if self.available_space >= file_size {
+            self.available_space -= file_size;
+        }
+    }
+
+    
+}
 
 // Network struct that holds the nodes
 pub struct Network {
@@ -75,6 +94,7 @@ impl Network {
         Ok(())
     }
 
+  
 
     // This function is used to discover new peers by connecting to the initial peers
     pub async fn discover_peers(&self, initial_peers: Vec<SocketAddr>) {

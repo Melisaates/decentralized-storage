@@ -63,7 +63,7 @@ pub fn store_file_hash(file_hash: String, node_id: &str) {
 }
 
 pub async fn can_store_file(
-    nodes: &Vec<Node>, // List of all nodes
+    nodes: &mut Vec<Node>, // List of all nodes
     file_size: u64,    // Size of the file
 ) -> Option<String> {
     // Return the ID of the node that can store the file
@@ -76,9 +76,9 @@ pub async fn can_store_file(
             fs::create_dir_all(storage_dir).ok(); // Continue if there's an error
         }
 
-        // Calculate the total used space in the node
+        // Node'daki kullanılan alanı hesapla
         let total_used = fs::read_dir(storage_dir)
-            .unwrap_or_else(|_| fs::read_dir("/dev/null").unwrap()) // Return empty if there's an error
+            .unwrap_or_else(|_| fs::read_dir("/dev/null").unwrap()) // Eğer hata varsa boş döndür
             .filter_map(Result::ok)
             .map(|entry| entry.metadata())
             .filter_map(Result::ok)
@@ -90,10 +90,13 @@ pub async fn can_store_file(
             node.id, total_used, node.available_space, file_size
         );
 
-        // Return the node ID if it can store the file
-        if total_used + file_size <= node.available_space {
-            return Some(node.id.clone());
-        }
+               // Eğer dosya depolanabilir durumdaysa, node ID'sini döndür
+               if total_used + file_size <= node.available_space {
+                // Node'a chunk depolandığında mevcut alanı güncelle
+                node.available_space -= file_size; // Depolanan dosya boyutunu mevcut alandan çıkar
+    
+                return Some(node.id.clone());
+            }
     }
     None // No suitable node found
 

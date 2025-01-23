@@ -130,9 +130,9 @@ impl StorageAPI {
             .to_string();
 
         // find available node
-        let nodes = self.network.get_nodes().await;
+        let mut nodes = self.network.get_nodes().await;
         
-        let node_id = can_store_file(&nodes, file_size)
+        let node_id = can_store_file(&mut nodes, file_size)
             .await
             .ok_or("No node found with enough storage space")?;
         // selected node is the node that has enough space to store the file
@@ -150,15 +150,21 @@ impl StorageAPI {
         let chunks = split_file(&encrypted_path, 1024 * 1024); // 1MB chunk boyutu
         let mut chunk_infos = Vec::new();
 
+        let mut chunk_count=0;
+        let mut nodes = self.network.get_nodes().await;
+
         // 4. Save and share chunks on each node
         for chunk_data in chunks.iter() {
+            chunk_count+=1;
+            println!("chunk count: {:?}", chunk_count);
             // Get nodes in the network
-            let mut nodes = self.network.get_nodes().await;
 
+            println!("chunkdata: {:?}", chunk_data.len());
             // Find a node that can store the chunk
-            if let Some(node_id) = can_store_file(&nodes, chunk_data.len() as u64).await {
+            if let Some(node_id) = can_store_file(&mut nodes, chunk_data.len() as u64).await {
                 // Find the selected node
                 let selected_node = nodes.iter_mut().find(|node| node.id == node_id).unwrap();
+                println!("selected node for every chunkdata: {:?}", selected_node.id);
 
                 // Store the chunk data on the selected node
                 store_file(
@@ -168,7 +174,7 @@ impl StorageAPI {
                     &node_id,
                 )?;
 
-                selected_node.available_space -= chunk_data.len() as u64;
+                //selected_node.available_space -= chunk_data.len() as u64;
 
 
                 // Share the chunk with the network
@@ -190,11 +196,17 @@ impl StorageAPI {
                     size: chunk_data.len() as u64,
                     hash: calculate_hash(chunk_data),
                 });
+
+                println!(
+                    "CHUNK  Node ID: {}, Used: {}, Available: {}, File Size: {}",
+                    selected_node.id, selected_node.total_space, selected_node.available_space, file_size
+                );
             } else {
                 println!("No suitable node found to store the chunk!");
                 return Err("No suitable node found to store the chunk.".into());
             }
         }
+
 
         // Başarıyla dosya yüklemesi tamamlandı
         Ok(file_id)
