@@ -31,6 +31,7 @@ async-std = "1.10.0"
 chrono = "0.4.38"
 libp2p = "0.42.0"
 anyhow = "1.0.40"
+reqwest = "0.11.4"
 
 [dev-dependencies]
 assert_cmd = "2.0"

@@ -5,6 +5,7 @@ use key_management::{generate_key_iv, load_and_decrypt_key, save_encrypted_key_t
 use libp2p::core::network;
 use p2p::{find_available_node, Network, Node};
 use pkcs7::encrypted_data_content;
+use serde::Deserialize;
 use storage::{can_store_file, store_chunk_on_node, store_file};
 use uuid::Uuid; // To connect to the P2P network
 //mod blockchain;
@@ -28,6 +29,7 @@ use tokio::time::{sleep};
 
 use tokio::sync::Mutex;
 use tokio::net::TcpListener;
+use reqwest;
 
 
 mod storage_api;
@@ -74,6 +76,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "127.0.0.1:8083".parse::<SocketAddr>()?,
     ];
 
+    
+// #[derive(Debug, Deserialize)]
+// struct NodeCapacity {
+//     total_storage: u64,   // Örnek alanlar
+//     used_storage: u64,    // Örnek alanlar
+//     available_storage: u64,
+//     max_bandwidth: u64,
+//     current_bandwidth: u64,
+// }
+
+//     async fn get_node_capacity(node_address: &str) -> Result<NodeCapacity, Box<dyn std::error::Error>> {
+//         let url = format!("http://{}/capacity", node_address);
+//         let response = reqwest::get(&url).await?;
+//         let capacity: NodeCapacity = response.json().await?;
+//         Ok(capacity)
+//     }
+
+
     // Initialize the StorageAPI
     println!("Initializing StorageAPI...");
     //let storage_path = env::var("STORAGE_PATH").unwrap_or_else(|_| "storage/".to_string());
@@ -85,6 +105,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("{:?}",storage_api.list_nodes().await?);
     println!("Waiting for peers to connect...");
     wait_for_peers(&storage_api, 20).await?;
+
+    // println!("*****************81Node capacity: {:?}*****************", get_node_capacity("127.0.0.1:8081").await?);
+    // println!("*****************82Node capacity: {:?}*****************", get_node_capacity("127.0.0.1:8082").await?);
+    // println!("*****************83Node capacity: {:?}*****************", get_node_capacity("127.0.0.1:8083").await?);
+
+
 
     let nodes = storage_api.list_nodes().await?;
     println!("Connected to {} peers", nodes.len());

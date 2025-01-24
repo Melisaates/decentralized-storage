@@ -226,6 +226,7 @@ let sanitized_node_id = sanitize_path_component(&node_id.replace(".", "").replac
         Ok(file_id)
     }
 
+
     // Düğüm listesini al
     pub async fn list_nodes(&self) -> Result<Vec<Node>, Box<dyn std::error::Error>> {
         Ok(self.network.get_nodes().await)
@@ -354,3 +355,6 @@ pub async fn wait_for_peers(storage_api: &StorageAPI, timeout_seconds: u64) -> R
 
 //     Ok(())
 // }
+
+
+
