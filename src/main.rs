@@ -76,7 +76,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Initialize the StorageAPI
     println!("Initializing StorageAPI...");
-    let storage_path = env::var("STORAGE_PATH").unwrap_or_else(|_| "storage/".to_string());
+    //let storage_path = env::var("STORAGE_PATH").unwrap_or_else(|_| "storage/".to_string());
+    let storage_path = "storage/"; // Storage path
     if !Path::new(&storage_path).exists() {
         return Err("Storage path does not exist.".into());
     }
@@ -93,7 +94,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Example: Upload a file
-    let file_path = "C:/Users/melisates/Downloads/1. Algorithms and Computation.mp4";
+    let file_path = "C:/Users/melisates/Downloads/uyumsuzlar 2 Türkçe dublaj.mp4";
     let owner = "user123";
     let encryption_password = "your-secure-password";
 

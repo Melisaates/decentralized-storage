@@ -41,6 +41,7 @@ pub fn encrypt_file_chunked(
         }
     };
 
+    //AES-128 in Cipher Block Chaining mode
     let mut input_file = File::open(file_path)?;
     let mut output_file = File::create(output_path)?;
     let cipher = Aes128Cbc::new_from_slices(&key_data.key, &key_data.iv).expect("Cipher creation failed");
@@ -69,6 +70,8 @@ pub fn encrypt_file_chunked(
     }
 
     // Calculate HMAC for all encrypted data
+    //Hmac : Hash-based Message Authentication Code
+    //Hmac's purpose is to verify the integrity and authenticity of a message
     let mut hmac = Hmac::<Sha256>::new_from_slice(&key_data.key).expect("HMAC creation failed");
     hmac.update(&encrypted_buffer);
     let hmac_result = hmac.finalize().into_bytes();

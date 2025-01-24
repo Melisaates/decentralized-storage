@@ -141,6 +141,7 @@ impl StorageAPI {
             .find(|n| n.id == node_id)
             .ok_or("Node not found")?;
 
+        selected_node.clone().storage_path = format!("{}/{}",  self.storage_path,selected_node.id);
         // Separate the file into chunks and encrypt
         let encrypted_path = "C:/Users/melisates/Documents/encrypted_file.jpg";
         // if !Path::new(&encrypted_path).exists() {
@@ -165,14 +166,27 @@ impl StorageAPI {
                 // Find the selected node
                 let selected_node = nodes.iter_mut().find(|node| node.id == node_id).unwrap();
                 println!("selected node for every chunkdata: {:?}", selected_node.id);
+                println!("selected node for every chunkdata: {:?}", selected_node.storage_path);
+
+                fn sanitize_path_component(input: &str) -> String {
+                    input
+                        .chars()
+                        .filter(|c| c.is_alphanumeric() || *c == '_')
+                        .collect()
+                }
+                let sanitized_file_name = sanitize_path_component(&file_name.replace(" ", ""));
+let sanitized_node_id = sanitize_path_component(&node_id.replace(".", "").replace(":", ""));
+
 
                 // Store the chunk data on the selected node
                 store_file(
                     chunk_data,
                     &selected_node.storage_path,
-                    &format!("{}{}", file_name, node_id),
+                    &format!("{}/{}", sanitized_file_name, sanitized_node_id
+                ),
                     &node_id,
                 )?;
+                println!("file_name: {:?}", file_name);
 
                 //selected_node.available_space -= chunk_data.len() as u64;
 

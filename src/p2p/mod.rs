@@ -241,7 +241,7 @@ impl Network {
         for peer in initial_peers_clone {
             self.add_node(Node {
                 id: peer.to_string(),
-                storage_path: std::env::var("STORAGE_PATH").unwrap_or_else(|_| "default/path".to_string()),
+                storage_path: "C:/Users/melisates/development/decentralized-storage-/storage".to_string(),
                 total_space: 1000000000,
                 available_space: 1000000000,
                 address: peer.to_string(),

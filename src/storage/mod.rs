@@ -27,8 +27,17 @@ pub fn store_file(
             .map_err(|e| format!("Failed to create directory {}: {}", dir_path.display(), e))?;
     }
 
+    println!("Storing file at: {}", dir_path.display());
     // Use Path manipulation for file path
     let file_path = dir_path.join(file_name);
+     // Ensure parent directory exists
+     if let Some(parent) = file_path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create directory {}: {}", parent.display(), e))?;
+    }
+
+
+    println!("Storing file at*****************: {}", file_path.display());
     let mut file = File::create(&file_path)
         .map_err(|e| format!("Failed to create file {}: {}", file_path.display(), e))?;
 
@@ -78,7 +87,7 @@ pub async fn can_store_file(
 
         // Node'daki kullanılan alanı hesapla
         let total_used = fs::read_dir(storage_dir)
-            .unwrap_or_else(|_| fs::read_dir("/dev/null").unwrap()) // Eğer hata varsa boş döndür
+            .unwrap_or_else(|_| fs::read_dir("/dev/null").unwrap()) 
             .filter_map(Result::ok)
             .map(|entry| entry.metadata())
             .filter_map(Result::ok)
