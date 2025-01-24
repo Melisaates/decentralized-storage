@@ -58,6 +58,8 @@ impl Network {
         nodes.values().cloned().collect()
     }
 
+    
+
     pub async fn add_node(&self, node: Node) {
         let mut nodes = self.nodes.lock().await;
         if !nodes.contains_key(&node.id) {
@@ -67,6 +69,14 @@ impl Network {
         } else {
             println!("Node already exists: {:?}", node.id);
         }
+    }
+    // Node ID'sine göre node'u döndüren fonksiyon
+    pub async fn get_node_by_id(&self, node_id: &str) -> Option<Node> {
+        // Node'ları al
+        let nodes = self.get_nodes().await;
+
+        // Node ID'si eşleşen node'u bul
+        nodes.into_iter().find(|node| node.id == node_id)
     }
 
     // This function is used to handle incoming messages from peers
