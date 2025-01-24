@@ -111,7 +111,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // println!("*****************83Node capacity: {:?}*****************", get_node_capacity("127.0.0.1:8083").await?);
 
 
-
+    // List available nodes
     let nodes = storage_api.list_nodes().await?;
     println!("Connected to {} peers", nodes.len());
     
