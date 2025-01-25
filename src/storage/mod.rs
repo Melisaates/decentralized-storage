@@ -102,7 +102,7 @@ pub async fn can_store_file(
                // Eğer dosya depolanabilir durumdaysa, node ID'sini döndür
                if total_used + file_size <= node.available_space {
                 // Node'a chunk depolandığında mevcut alanı güncelle
-                node.available_space -= file_size; // Depolanan dosya boyutunu mevcut alandan çıkar
+                node.reduce_available_space(file_size); // Depolanan dosya boyutunu mevcut alandan çıkar
     
                 return Some(node.id.clone());
             }

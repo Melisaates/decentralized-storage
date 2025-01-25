@@ -125,8 +125,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let encryption_password = "your-secure-password";
 
     println!("Uploading file...");
-    match storage_api.upload_file(file_path, owner, encryption_password).await {
-        Ok(file_id) => println!("File uploaded successfully. File ID: {}", file_id),
+    let file_id = match storage_api.upload_file(file_path, owner, encryption_password).await {
+        Ok(file_id) =>  println!("File uploaded successfully. File ID: {}", file_id),
         Err(e) => {
             eprintln!("Failed to upload file: {:?} at {:?}", e, file_path);
             // Print available nodes for debugging
@@ -136,7 +136,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     node.id, node.address, node.available_space);
             }
         }
-    }
+    };
+
 
 
     // List available nodes
@@ -151,6 +152,37 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Err(e) => eprintln!("Failed to list nodes: {:?}", e),
     }
 
+    let mut id= String::from("");
+    // List stored files
+    println!("\nListing stored files:");
+    match storage_api.list_files().await {
+        Ok(files) => {
+            for file in files {
+                println!("File ID: {}, Name: {}, Owner: {}, Size: {} bytes",
+                    file.file_id, file.file_name, file.owner, file.file_size);
+                    if file.file_name == "1. Algorithms and Computation.mp4" {
+                        id = file.file_id;
+                    }
+            }
+        }
+        Err(e) => eprintln!("Failed to list files: {:?}", e),
+    }
+
+    // Download a file
+    let download_path = "C:/Users/melisates/Documents/downloaded_file.mp4";
+    let password = "your-secure-password";
+
+
+    println!("file id: {}", id);
+    println!("\nDownloading file...");
+    match storage_api.download_file_for_reading(&id, download_path, password).await {
+        Ok(_) => println!("File downloaded successfully to: {}", download_path),
+        Err(e) => eprintln!("Failed to download file: {:?}", e),
+    }
+
+    // storage_api.delete_file(&id).await?;
+    // println!("File deleted successfully.");
+
     // List stored files
     println!("\nListing stored files:");
     match storage_api.list_files().await {
@@ -162,6 +194,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Err(e) => eprintln!("Failed to list files: {:?}", e),
     }
+
+    // // Download a file
+    // let destination_path = "C:/Users/melisates/Documents/downloaded_file.mp4";
+    // storage_api.download_file_for_reading(&id, destination_path, encryption_password);
+
+
 
     // Keep the main thread running
     println!("\nServer running. Press Ctrl+C to exit.");

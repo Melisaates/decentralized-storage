@@ -31,12 +31,36 @@ impl Node {
             available_space: total_space,
         }
     }
-    pub fn update_available_space(&mut self, file_size: u64) {
-        // Dosya boyutu kadar kullanılabilir alanı günceller
+
+    pub fn reduce_available_space(&mut self, file_size: u64) {
+        // Dosya boyutu kadar kullanılabilir alanı azaltır
         if self.available_space >= file_size {
             self.available_space -= file_size;
+            println!(
+                "Node {}: Space reduced. Remaining available space: {}",
+                self.id, self.available_space
+            );
+        } else {
+            println!(
+                "Node {}: Not enough space to store the file of size {}.",
+                self.id, file_size
+            );
         }
     }
+
+    
+    pub async fn free_up_space(&mut self, freed_space: u64) {
+        // Dosya kaldırılırken boşalan alanı artırır
+        self.available_space += freed_space;
+        println!(
+            "Node {}: Space freed. New available space: {}",
+            self.id, self.available_space
+        );
+    }
+
+
+
+
 
     
 }

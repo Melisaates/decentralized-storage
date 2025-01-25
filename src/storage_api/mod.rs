@@ -147,7 +147,7 @@ impl StorageAPI {
         // selected_node.clone().storage_path = format!("{}/{}", self.storage_path, selected_node.id);
 
         // Separate the file into chunks and encrypt
-        let encrypted_path = "C:/Users/melisates/Documents/encrypted_file.jpg";
+        let encrypted_path = "C:/Users/melisates/Documents/encrypted_file.mp4";
         // if !Path::new(&encrypted_path).exists() {
         //     return Err("Encrypted file was not created.".into());
         // }
@@ -179,15 +179,15 @@ impl StorageAPI {
                     selected_node.storage_path
                 );
 
-                fn sanitize_path_component(input: &str) -> String {
-                    input
-                        .chars()
-                        .filter(|c| c.is_alphanumeric() || *c == '_')
-                        .collect()
-                }
-                let sanitized_file_name = sanitize_path_component(&file.file_name.replace(" ", ""));
-                let sanitized_node_id =
-                    sanitize_path_component(&node_id.replace(".", "").replace(":", ""));
+                // fn sanitize_path_component(input: &str) -> String {
+                //     input
+                //         .chars()
+                //         .filter(|c| c.is_alphanumeric() || *c == '_')
+                //         .collect()
+                // }
+                // let sanitized_file_name = sanitize_path_component(&file.file_name.replace(" ", ""));
+                // let sanitized_node_id =
+                //     sanitize_path_component(&node_id.replace(".", "").replace(":", ""));
 
                 // Store the chunk data on the selected node
                 // store_file(
@@ -262,114 +262,185 @@ impl StorageAPI {
         Ok(index.values().cloned().collect())
     }
 
-
-
-pub async fn delete_file(
-    &self,
-    file_id: &str,
-) -> Result<String, Box<dyn std::error::Error>> {
-    // Dosya bilgilerini al
-    let file = self
-        .file_index
-        .lock()
-        .await
-        .get(file_id)
-        .ok_or("File not found")?
-        .clone();
-
-    // Dosya parçalarını sırayla sil
-    let mut chunk_count = 0;
-    for chunk in file.chunks.iter() {
-        let stored_node = self
-            .network
-            .get_node_by_id(&chunk.node_id)
+    pub async fn delete_file(&self, file_id: &str) -> Result<String, Box<dyn std::error::Error>> {
+        // Dosya bilgilerini al
+        let file = self
+            .file_index
+            .lock()
             .await
-            .ok_or("Node not found")?;
+            .get(file_id)
+            .ok_or("File not found")?
+            .clone();
 
-        // Parçayı noddan sil
-        if let Err(e) = delete_chunk_from_node(&stored_node, &chunk.chunk_id).await {
-            eprintln!(
-                "Failed to delete chunk {} from node {}: {:?}",
-                chunk.chunk_id, stored_node.id, e
-            );
-            return Err(e);
+        // Dosya parçalarını sırayla sil
+        let mut chunk_count = 0;
+        for chunk in file.chunks.iter() {
+            let mut stored_node = self
+                .network
+                .get_node_by_id(&chunk.node_id)
+                .await
+                .ok_or("Node not found")?;
+
+            // Parçayı noddan sil
+            if let Err(e) = delete_chunk_from_node(&stored_node, &chunk.chunk_id).await {
+                eprintln!(
+                    "Failed to delete chunk {} from node {}: {:?}",
+                    chunk.chunk_id, stored_node.id, e
+                );
+                return Err(e);
+            }
+
+            // Kapasiteyi güncelle
+            stored_node.free_up_space(chunk.size).await;
+            chunk_count += 1;
         }
-        chunk_count += 1;
+
+        // Tüm parçalar başarıyla silindiyse dosyayı indeksden sil
+        if chunk_count == file.chunks.len() {
+            println!("All chunks deleted successfully.");
+            self.file_index.lock().await.remove(file_id);
+            Ok(format!("File with ID {} deleted successfully", file_id))
+        } else {
+            // Bir veya daha fazla parça silinemedi, dosya silme işlemi başarısız
+            eprintln!("Failed to delete all chunks, aborting file deletion.");
+            Err("Failed to delete all chunks.".into())
+        }
     }
 
-    // Tüm parçalar başarıyla silindiyse dosyayı indeksden sil
-    if chunk_count == file.chunks.len() {
-        println!("All chunks deleted successfully.");
-        self.file_index.lock().await.remove(file_id);
-        Ok(format!("File with ID {} deleted successfully", file_id))
-    } else {
-        // Bir veya daha fazla parça silinemedi, dosya silme işlemi başarısız
-        eprintln!("Failed to delete all chunks, aborting file deletion.");
-        Err("Failed to delete all chunks.".into())
-    }
-}
-
-pub async fn download_file(
-    &self,
-    file_id: &str,
-    destination_path: &str,
-    encryption_password: &str,
-) -> Result<String, Box<dyn std::error::Error>> {
-    // Dosya bilgilerini al
-    let file = self
-        .file_index
-        .lock()
-        .await
-        .get(file_id)
-        .ok_or("File not found")?
-        .clone();
-
-    // İndirilen veriyi birleştirmek için bir buffer oluştur
-    let mut full_file_data = Vec::new();
-
-    // Dosyanın tüm parçalarını sırayla indir
-    for chunk in file.chunks.iter() {
-        let selected_node = self
-            .network
-            .get_node_by_id(&chunk.node_id)
+    pub async fn download_file_for_reading(
+        &self,
+        file_id: &str,
+        destination_path: &str,
+        encryption_password: &str,
+    ) -> Result<String, Box<dyn std::error::Error>> {
+        let file = self
+            .file_index
+            .lock()
             .await
-            .ok_or("Node not found")?;
+            .get(file_id)
+            .ok_or("File not found")?
+            .clone();
 
-        // Parçayı node'dan indir
-        let chunk_data = download_chunk_from_node(&selected_node, &chunk.chunk_id).await?;
+        let mut full_file_data = Vec::new();
 
-        // Parçayı buffer'a ekle
-        full_file_data.extend(chunk_data);
+        for chunk in file.chunks.iter() {
+            let selected_node = self
+                .network
+                .get_node_by_id(&chunk.node_id)
+                .await
+                .ok_or("Node not found")?;
+
+            let chunk_data = download_chunk_for_reading(&selected_node, &chunk.chunk_id).await?;
+            full_file_data.extend(chunk_data);
+        }
+
+        let decrypted_path = format!("{}.decrypted", destination_path);
+        if let Err(e) = decrypt_file_chunked(
+            &file.file_id,
+            &decrypted_path,
+            destination_path,
+            encryption_password,
+        ) {
+            eprintln!("Failed to decrypt file: {:?}", e);
+            return Err(e.into());
+        }
+
+        println!(
+            "File downloaded for reading successfully to: {:?}",
+            destination_path
+        );
+        Ok(format!(
+            "File downloaded for reading successfully to: {}",
+            destination_path
+        ))
     }
 
-    // Şifreyi çözme işlemi
-    let decrypted_path = format!("{}.decrypted", destination_path);
-    decrypt_file_chunked(
-        &file.file_id,
-        &decrypted_path,
-        destination_path,
-        encryption_password,
-    )?;
+    pub async fn download_file_and_remove(
+        &mut self,
+        file_id: &str,
+        destination_path: &str,
+        encryption_password: &str,
+    ) -> Result<String, Box<dyn std::error::Error>> {
+        let file = self
+            .file_index
+            .lock()
+            .await
+            .get(file_id)
+            .ok_or("File not found")?
+            .clone();
 
+        let mut full_file_data = Vec::new();
 
-    println!("File downloaded and decrypted successfully to: {:?}", destination_path);
-    Ok(format!("File downloaded and decrypted successfully to: {}", destination_path))
+        for chunk in file.chunks.iter() {
+            let mut selected_node = self
+                .network
+                .get_node_by_id(&chunk.node_id)
+                .await
+                .ok_or("Node not found")?;
+
+            let chunk_data =
+                download_chunk_and_remove_from_node(&mut selected_node, &chunk.chunk_id).await?;
+            full_file_data.extend(chunk_data);
+        }
+
+        let decrypted_path = format!("{}.decrypted", destination_path);
+        decrypt_file_chunked(
+            &file.file_id,
+            &decrypted_path,
+            destination_path,
+            encryption_password,
+        )?;
+
+        println!(
+            "File downloaded and removed from network successfully to: {:?}",
+            destination_path
+        );
+        Ok(format!(
+            "File downloaded and removed from network successfully to: {}",
+            destination_path
+        ))
+    }
 }
 
-}
-
-//Noddan bir parçayı indir
-async fn download_chunk_from_node(
+async fn download_chunk_for_reading(
     node: &Node,
     chunk_id: &str,
 ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
-    // Parçayı node'dan indirme işlemi
     let chunk_path = format!("{}/{}", node.storage_path, chunk_id);
-    let chunk_data = tokio::fs::read(chunk_path).await?;
-    println!("Chunk {} downloaded from node {}", chunk_id, node.id);
+    let chunk_data = match tokio::fs::read(&chunk_path).await {
+        Ok(data) => data,
+        Err(e) => {
+            eprintln!(
+                "Failed to read chunk {chunk_id} from node {node_address}: {error:?}",
+                chunk_id = chunk_id,
+                node_address = node.address,
+                error = e
+            );
+            return Err(Box::new(e));
+        }
+    };
+    println!("Chunk {} read from node {}", chunk_id, node.id);
     Ok(chunk_data)
 }
 
+async fn download_chunk_and_remove_from_node(
+    node: &mut Node,
+    chunk_id: &str,
+) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+    let chunk_path: String = format!("{}/{}", node.storage_path, chunk_id);
+    let chunk_data = tokio::fs::read(&chunk_path).await?;
+
+    delete_chunk_from_node(node, chunk_id).await?;
+
+    // Kapasiteyi güncelle
+    node.free_up_space(chunk_data.len() as u64).await;
+
+    println!(
+        "Chunk {} downloaded and removed from node {}",
+        chunk_id, node.id
+    );
+    Ok(chunk_data)
+}
 
 // Yardımcı fonksiyon: Noddan bir parçayı sil
 async fn delete_chunk_from_node(
@@ -377,7 +448,7 @@ async fn delete_chunk_from_node(
     chunk_id: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Parçayı noddan silme işlemi
-    let chunk_path = format!("{}/{}", node.storage_path, chunk_id);
+    let chunk_path: String = format!("{}/{}", node.storage_path, chunk_id);
     if let Err(e) = tokio::fs::remove_file(chunk_path).await {
         eprintln!("Error deleting chunk: {:?}", e);
         return Err(Box::new(e));
