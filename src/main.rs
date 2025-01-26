@@ -173,12 +173,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let password = "your-secure-password";
 
 
-    println!("file id: {}", id);
-    println!("\nDownloading file...");
-    match storage_api.download_file_for_reading(&id, download_path, password).await {
-        Ok(_) => println!("File downloaded successfully to: {}", download_path),
-        Err(e) => eprintln!("Failed to download file: {:?}", e),
-    }
+    // println!("file id: {}", id);
+    // println!("\nDownloading file...");
+    // match storage_api.download_file_for_reading(&id, download_path, password).await {
+    //     Ok(_) => println!("File downloaded successfully to: {}", download_path),
+    //     Err(e) => eprintln!("Failed to download file: {:?}", e),
+    // }
 
     // storage_api.delete_file(&id).await?;
     // println!("File deleted successfully.");
@@ -195,6 +195,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Err(e) => eprintln!("Failed to list files: {:?}", e),
     }
 
+
+    
     // // Download a file
     // let destination_path = "C:/Users/melisates/Documents/downloaded_file.mp4";
     // storage_api.download_file_for_reading(&id, destination_path, encryption_password);

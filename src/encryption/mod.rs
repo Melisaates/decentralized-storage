@@ -408,6 +408,8 @@ pub fn decrypt_data(file_data_id: &str,encrypted_data: &[u8], password: &str) ->
 
 
 
+
+
 pub fn split_file(file_path: &str, chunk_size: usize) -> Vec<Vec<u8>> {
     let mut file = File::open(file_path).expect("Dosya açılamadı");
     let mut file_contents = Vec::new();

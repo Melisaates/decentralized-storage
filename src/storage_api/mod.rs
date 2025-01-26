@@ -97,6 +97,18 @@ impl StorageAPI {
             network_clone2.periodic_peer_update(initial_peers).await;
         });
 
+            // Spawn periodic challenge check
+    tokio::spawn({
+        let network_clone = network.clone();
+        async move {
+            println!("******************");
+            println!("Starting periodic challenge check");
+            periodic_check(&network_clone).await;
+            println!("******************");
+        }
+    });
+
+
         // // Zamanlı kontrol işlemini başlat
         // let storage_path_clone = storage_path.to_string();
         // tokio::spawn(async move {
