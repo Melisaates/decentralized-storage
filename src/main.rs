@@ -1,9 +1,12 @@
 mod p2p;
+mod file_system;
 use encryption::{encrypt_file_chunked, decrypt_file_chunked,encrypt_data_chunked,decrypt_data_chunked};
 use ethers::core::k256::elliptic_curve::rand_core::le;
 use key_management::{generate_key_iv, load_and_decrypt_key, save_encrypted_key_to_store};
 use libp2p::core::network;
-use p2p::{find_available_node, Network, Node};
+use p2p::{find_available_node, Network};
+mod node;
+use node::Node;
 use pkcs7::encrypted_data_content;
 use serde::Deserialize;
 use storage::{can_store_file, store_chunk_on_node, store_file};
@@ -26,7 +29,6 @@ use std::time::Duration;
 mod proof_of_spacetime;
 use proof_of_spacetime::periodic_check;
 use tokio::time::{sleep};
-
 use tokio::sync::Mutex;
 use tokio::net::TcpListener;
 use reqwest;

@@ -1,4 +1,5 @@
-use crate::p2p::{Network, Node};
+use crate::p2p::{Network};
+use crate::node::Node;
 use rand::seq::SliceRandom;
 use rand::{thread_rng, Rng};
 use sha2::{Digest, Sha256};

@@ -1,5 +1,6 @@
 use crate::encryption::{decrypt_file_chunked, encrypt_file_chunked, split_file};
-use crate::p2p::{find_available_node, Network, Node};
+use crate::p2p::{find_available_node, Network};
+use crate::node::Node;
 use crate::proof_of_spacetime::periodic_check;
 use crate::storage::{self, can_store_file, store_chunk_on_node, store_file};
 use actix_web::body::MessageBody;

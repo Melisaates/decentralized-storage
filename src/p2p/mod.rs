@@ -1,69 +1,21 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::fs::{self, File};
+use std::io::Write;
 use std::net::SocketAddr;
+use std::path::Path;
+use std::process::Command;
 use std::sync::Arc;
+use std::thread::available_parallelism;
 use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
+use anyhow::{Result, anyhow};
 use tokio::net::TcpListener;
 use tokio::net::TcpStream;
 use tokio::sync::Mutex;
 use tokio::time::{sleep, Duration};
 
-use crate::storage;
+use crate::node::Node;
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
-// address : IP address of the node
-//storage_path : Path to the storage directory
-pub struct Node {
-    pub id: String, //unique identifier
-    pub storage_path: String,
-    pub address: String,
-    pub total_space: u64,
-    pub available_space: u64,
-
-}
-impl Node {
-    pub fn new(id: String, storage_path: String, address: String, total_space: u64) -> Self {
-        Node {
-            id,
-            storage_path,
-            address,
-            total_space,
-            available_space: total_space,
-        }
-    }
-
-    pub fn reduce_available_space(&mut self, file_size: u64) {
-        // Dosya boyutu kadar kullanılabilir alanı azaltır
-        if self.available_space >= file_size {
-            self.available_space -= file_size;
-            println!(
-                "Node {}: Space reduced. Remaining available space: {}",
-                self.id, self.available_space
-            );
-        } else {
-            println!(
-                "Node {}: Not enough space to store the file of size {}.",
-                self.id, file_size
-            );
-        }
-    }
-
-    
-    pub async fn free_up_space(&mut self, freed_space: u64) {
-        // Dosya kaldırılırken boşalan alanı artırır
-        self.available_space += freed_space;
-        println!(
-            "Node {}: Space freed. New available space: {}",
-            self.id, self.available_space
-        );
-    }
-
-
-
-
-
-    
-}
 
 // Network struct that holds the nodes
 pub struct Network {

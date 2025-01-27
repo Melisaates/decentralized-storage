@@ -1,4 +1,4 @@
-use crate::p2p::Node;
+use crate::node::Node;
 use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::path::Path;
