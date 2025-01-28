@@ -12,7 +12,6 @@ hmac = "0.11"
 sha2 = "0.9"
 hex = "0.4"
 generic-array = "0.14"
-tokio = { version = "1", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 pkcs7 = "0.4"
@@ -29,11 +28,17 @@ uuid = { version = "1.11.1", features = ["v4"] }
 crypto ={version = "0.5.0",features = ["digest"]}
 async-std = "1.10.0"
 chrono = "0.4.38"
-libp2p = "0.42.0"
+libp2p = { version = "0.41", features = ["gossipsub", "identify", "mdns", "noise", "tcp-tokio", "yamux"] }
+tokio = { version = "1", features = ["full"] }
 anyhow = "1.0.40"
 reqwest = "0.11.4"
 warp = "0.3.0"
 sys-info = "0.9.1"
+libc = "0.2.169"
+md5 = "0.7.0"
+actix-multipart = "0.7.2"
+bytes = "1.1.0"
+
 
 [dev-dependencies]
 assert_cmd = "2.0"

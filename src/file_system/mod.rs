@@ -1,5 +1,6 @@
 use sys_info;
 
+pub mod file_operations; 
 pub enum FileSystem {
     FAT32,
     ExFat,

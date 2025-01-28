@@ -1,217 +1,336 @@
-mod p2p;
-mod file_system;
-use encryption::{encrypt_file_chunked, decrypt_file_chunked,encrypt_data_chunked,decrypt_data_chunked};
-use ethers::core::k256::elliptic_curve::rand_core::le;
-use key_management::{generate_key_iv, load_and_decrypt_key, save_encrypted_key_to_store};
-use libp2p::core::network;
-use p2p::{find_available_node, Network};
-mod node;
-use node::Node;
-use pkcs7::encrypted_data_content;
-use serde::Deserialize;
-use storage::{can_store_file, store_chunk_on_node, store_file};
-use uuid::Uuid; // To connect to the P2P network
-//mod blockchain;
-// use blockchain::{BscClient}; 
-// Communication with Binance Smart Chain
-mod encryption;
-mod key_management;
-mod storage;
-use std::fs::File;
-use std::io::Read;
-use std::net::SocketAddr;
-use std::path::Path;
-use std::process;
-use std::sync::Arc;
-use tokio::task;
-use tokio::runtime::Runtime;
-use std::time::Duration;
-mod proof_of_spacetime;
-use proof_of_spacetime::periodic_check;
-use tokio::time::{sleep};
-use tokio::sync::Mutex;
-use tokio::net::TcpListener;
-use reqwest;
+mod storage_;
+use bytes::{Bytes, Buf};
+use storage_::File;
 
+use crate::storage_::Storage;
 
-mod storage_api;
-use storage_api::{wait_for_peers, StorageAPI};
+fn main() {
+    let mut storage = Storage::new("node1");
 
-use futures::future::ok;
+    let file_path = "C:/Users/melisates/Documents/WhatsApp Video 2024-11-03 at 18.47.50_f9c56fbd.mp4";
+    // Örnek dosya verisi (görsel ya da video dosyası)
+    let file_data = Bytes::from("This is a sample file content that could be an image or video.".to_string());
+    let file_type = storage.check_file_type(file_path);
 
-use anyhow::Result;
+    let file_chunks = Storage::split_file_into_chunks(file_data);
 
-/// Helper function to read a file and return it as a byte array
-fn read_file(file_path: &str) -> Result<Vec<u8>, std::io::Error> {
-    let mut file = File::open(file_path)?;
-    let mut buffer = Vec::new();
-    file.read_to_end(&mut buffer)?;
-    Ok(buffer)
-}
+    // Dosyayı parçalar halinde depolama
+    let file = File {
+        id: "file1".to_string(),
+        data: file_chunks,
+        file_type,
+    };
+    storage.store_file(file.clone());
 
-use std::error::Error;
-
-use tokio;
-use std::env;
-use std::fs;
-use std::io;
-
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
- 
-
-    // Komut satırı argümanlarını al
-    let args: Vec<String> = env::args().collect();
-    if args.len() != 2 {
-        eprintln!("Usage: {} <address>", args[0]);
-        std::process::exit(1);
+    // Dosyayı indir (parçalı)
+    if let Some(downloaded_chunks) = storage.download_file("file1") {
+        let downloaded_data: String = downloaded_chunks.iter()
+            .map(|chunk| String::from_utf8_lossy(&chunk).to_string())
+            .collect();
+        println!("Downloaded file data: {}", downloaded_data);
     }
 
-    let server_addr: std::net::SocketAddr = args[1].parse().expect("Invalid address");
+    // Dosya silme (parçalı)
+    storage.delete_file("file1");
+}
 
 
-    // Define initial peers for the P2P network
-    let initial_peers = vec![
-        "127.0.0.1:8081".parse::<SocketAddr>()?,
-        "127.0.0.1:8082".parse::<SocketAddr>()?,
-        "127.0.0.1:8083".parse::<SocketAddr>()?,
-    ];
 
-    
-// #[derive(Debug, Deserialize)]
-// struct NodeCapacity {
-//     total_storage: u64,   // Örnek alanlar
-//     used_storage: u64,    // Örnek alanlar
-//     available_storage: u64,
-//     max_bandwidth: u64,
-//     current_bandwidth: u64,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// mod p2p;
+// mod file_system;
+// //use encryption::{encrypt_file_chunked, decrypt_file_chunked,encrypt_data_chunked,decrypt_data_chunked};
+// use ethers::core::k256::elliptic_curve::rand_core::le;
+// use key_management::{generate_key_iv, load_and_decrypt_key, save_encrypted_key_to_store};
+// use libp2p::core::network;
+// use p2p::{find_available_node, Network};
+// mod node;
+
+// use pkcs7::encrypted_data_content;
+// use serde::Deserialize;
+// use storage::{can_store_file, store_chunk_on_node, store_file};
+// use uuid::Uuid; // To connect to the P2P network
+// //mod blockchain;
+// // use blockchain::{BscClient}; 
+// // Communication with Binance Smart Chain
+// //mod encryption;
+// mod key_management;
+// mod storage;
+// use std::fs::File;
+// use std::io::Read;
+// use std::net::SocketAddr;
+// use std::path::Path;
+// use std::process;
+// use std::sync::Arc;
+// use tokio::task;
+// use tokio::runtime::Runtime;
+// use std::time::Duration;
+// mod proof_of_spacetime;
+// use proof_of_spacetime::periodic_check;
+// use tokio::time::{sleep};
+// use tokio::sync::Mutex;
+// use tokio::net::TcpListener;
+// use reqwest;
+// use node::Node;
+// use actix_web::{web, App, HttpServer, Responder};
+
+
+// //mod storage_api_p2p;
+// //use storage_api_p2p::{wait_for_peers, StorageAPI};
+
+// use futures::future::ok;
+
+// use anyhow::Result;
+
+// /// Helper function to read a file and return it as a byte array
+// fn read_file(file_path: &str) -> Result<Vec<u8>, std::io::Error> {
+//     let mut file = File::open(file_path)?;
+//     let mut buffer = Vec::new();
+//     file.read_to_end(&mut buffer)?;
+//     Ok(buffer)
 // }
 
-//     async fn get_node_capacity(node_address: &str) -> Result<NodeCapacity, Box<dyn std::error::Error>> {
-//         let url = format!("http://{}/capacity", node_address);
-//         let response = reqwest::get(&url).await?;
-//         let capacity: NodeCapacity = response.json().await?;
-//         Ok(capacity)
+// use std::error::Error;
+
+// use tokio;
+// use std::env;
+// use std::fs;
+// use std::io;
+
+// #[actix_web::main]
+// async fn main() -> std::io::Result<()> {
+
+
+//     let config = DiskConfig {
+//         base_path: "./storage/node".to_string(),
+//         max_capacity: 5 * 1024 * 1024 * 1024, // 5GB
+//         reserved_space: 500,    // 500MB
+//     };
+
+//     let disk_manager: Arc<DiskManager> = Arc::new(DiskManager::new(config).await?);
+    
+//     HttpServer::new(move || {
+//         App::new()
+//             .app_data(web::Data::new(disk_manager.clone()))
+//             .route("/upload", web::post().to(upload_file))
+//             .route("/download/{file_id}", web::get().to(download_file))
+//             .route("/space", web::get().to(check_space))
+//             .route("/health", web::get().to(health_check))
+//     })
+//     .bind("127.0.0.1:8080")?
+//     .run()
+//     .await
+// }
+
+
+
+
+
+//en sonki updateden t. önceki hali
+// #[tokio::main]
+// async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    
+ 
+
+//     // Komut satırı argümanlarını al
+//     let args: Vec<String> = env::args().collect();
+//     if args.len() != 2 {
+//         eprintln!("Usage: {} <address>", args[0]);
+//         std::process::exit(1);
+//     }
+
+//     let server_addr: std::net::SocketAddr = args[1].parse().expect("Invalid address");
+
+
+//     // Define initial peers for the P2P network
+//     let initial_peers = vec![
+//         "127.0.0.1:8081".parse::<SocketAddr>()?,
+//         "127.0.0.1:8082".parse::<SocketAddr>()?,
+//         "127.0.0.1:8083".parse::<SocketAddr>()?,
+//     ];
+
+    
+// // #[derive(Debug, Deserialize)]
+// // struct NodeCapacity {
+// //     total_storage: u64,   // Örnek alanlar
+// //     used_storage: u64,    // Örnek alanlar
+// //     available_storage: u64,
+// //     max_bandwidth: u64,
+// //     current_bandwidth: u64,
+// // }
+
+// //     async fn get_node_capacity(node_address: &str) -> Result<NodeCapacity, Box<dyn std::error::Error>> {
+// //         let url = format!("http://{}/capacity", node_address);
+// //         let response = reqwest::get(&url).await?;
+// //         let capacity: NodeCapacity = response.json().await?;
+// //         Ok(capacity)
+// //     }
+
+
+//     // Initialize the StorageAPI
+//     println!("Initializing StorageAPI...");
+//     //let storage_path = env::var("STORAGE_PATH").unwrap_or_else(|_| "storage/".to_string());
+//     let storage_path = "storage/"; // Storage path
+//     if !Path::new(&storage_path).exists() {
+//         return Err("Storage path does not exist.".into());
+//     }
+//     let storage_api = StorageAPI::new(&storage_path, server_addr, initial_peers).await?;
+//     println!("{:?}",storage_api.list_nodes().await?);
+//     println!("Waiting for peers to connect...");
+//     wait_for_peers(&storage_api, 20).await?;
+
+//     // println!("*****************81Node capacity: {:?}*****************", get_node_capacity("127.0.0.1:8081").await?);
+//     // println!("*****************82Node capacity: {:?}*****************", get_node_capacity("127.0.0.1:8082").await?);
+//     // println!("*****************83Node capacity: {:?}*****************", get_node_capacity("127.0.0.1:8083").await?);
+
+
+//     // List available nodes
+//     let nodes = storage_api.list_nodes().await?;
+//     println!("Connected to {} peers", nodes.len());
+    
+//     if nodes.is_empty() {
+//         println!("Warning: No peers available, some operations may fail");
+//     }
+
+//     // Example: Upload a file
+//     let file_path = "C:/Users/melisates/Downloads/1. Algorithms and Computation.mp4";
+//     let owner = "user123";
+//     let encryption_password = "your-secure-password";
+
+//     println!("Uploading file...");
+//     let file_id = match storage_api.upload_file(file_path, owner, encryption_password).await {
+//         Ok(file_id) =>  println!("File uploaded successfully. File ID: {}", file_id),
+//         Err(e) => {
+//             eprintln!("Failed to upload file: {:?} at {:?}", e, file_path);
+//             // Print available nodes for debugging
+//             println!("\nAvailable nodes:");
+//             for node in storage_api.list_nodes().await? {
+//                 println!("Node ID: {}, Address: {}, Available Space: {}", 
+//                     node.id, node.address, node.available_space);
+//             }
+//         }
+//     };
+
+
+
+//     // List available nodes
+//     println!("\nListing available nodes:");
+//     match storage_api.list_nodes().await {
+//         Ok(nodes) => {
+//             for node in nodes {
+//                 println!("Node ID: {}, Address: {}, Available Space: {} bytes", 
+//                     node.id, node.address, node.available_space);
+//             }
+//         }
+//         Err(e) => eprintln!("Failed to list nodes: {:?}", e),
+//     }
+
+//     let mut id= String::from("");
+//     // List stored files
+//     println!("\nListing stored files:");
+//     match storage_api.list_files().await {
+//         Ok(files) => {
+//             for file in files {
+//                 println!("File ID: {}, Name: {}, Owner: {}, Size: {} bytes",
+//                     file.file_id, file.file_name, file.owner, file.file_size);
+//                     if file.file_name == "1. Algorithms and Computation.mp4" {
+//                         id = file.file_id;
+//                     }
+//             }
+//         }
+//         Err(e) => eprintln!("Failed to list files: {:?}", e),
+//     }
+
+//     // Download a file
+//     let download_path = "C:/Users/melisates/Documents/downloaded_file.mp4";
+//     let password = "your-secure-password";
+
+
+//     println!("file id: {}", id);
+//     println!("\nDownloading file...");
+//     match storage_api.download_file_for_reading(&id, download_path, password).await {
+//         Ok(_) => println!("File downloaded successfully to: {}", download_path),
+//         Err(e) => eprintln!("Failed to download file: {:?}", e),
+//     }
+
+//     // storage_api.delete_file(&id).await?;
+//     // println!("File deleted successfully.");
+
+//     // List stored files
+//     println!("\nListing stored files:");
+//     match storage_api.list_files().await {
+//         Ok(files) => {
+//             for file in files {
+//                 println!("File ID: {}, Name: {}, Owner: {}, Size: {} bytes",
+//                     file.file_id, file.file_name, file.owner, file.file_size);
+//             }
+//         }
+//         Err(e) => eprintln!("Failed to list files: {:?}", e),
 //     }
 
 
-    // Initialize the StorageAPI
-    println!("Initializing StorageAPI...");
-    //let storage_path = env::var("STORAGE_PATH").unwrap_or_else(|_| "storage/".to_string());
-    let storage_path = "storage/"; // Storage path
-    if !Path::new(&storage_path).exists() {
-        return Err("Storage path does not exist.".into());
-    }
-    let storage_api = StorageAPI::new(&storage_path, server_addr, initial_peers).await?;
-    println!("{:?}",storage_api.list_nodes().await?);
-    println!("Waiting for peers to connect...");
-    wait_for_peers(&storage_api, 20).await?;
-
-    // println!("*****************81Node capacity: {:?}*****************", get_node_capacity("127.0.0.1:8081").await?);
-    // println!("*****************82Node capacity: {:?}*****************", get_node_capacity("127.0.0.1:8082").await?);
-    // println!("*****************83Node capacity: {:?}*****************", get_node_capacity("127.0.0.1:8083").await?);
-
-
-    // List available nodes
-    let nodes = storage_api.list_nodes().await?;
-    println!("Connected to {} peers", nodes.len());
     
-    if nodes.is_empty() {
-        println!("Warning: No peers available, some operations may fail");
-    }
-
-    // Example: Upload a file
-    let file_path = "C:/Users/melisates/Downloads/1. Algorithms and Computation.mp4";
-    let owner = "user123";
-    let encryption_password = "your-secure-password";
-
-    println!("Uploading file...");
-    let file_id = match storage_api.upload_file(file_path, owner, encryption_password).await {
-        Ok(file_id) =>  println!("File uploaded successfully. File ID: {}", file_id),
-        Err(e) => {
-            eprintln!("Failed to upload file: {:?} at {:?}", e, file_path);
-            // Print available nodes for debugging
-            println!("\nAvailable nodes:");
-            for node in storage_api.list_nodes().await? {
-                println!("Node ID: {}, Address: {}, Available Space: {}", 
-                    node.id, node.address, node.available_space);
-            }
-        }
-    };
+//     // // Download a file
+//     // let destination_path = "C:/Users/melisates/Documents/downloaded_file.mp4";
+//     // storage_api.download_file_for_reading(&id, destination_path, encryption_password);
 
 
 
-    // List available nodes
-    println!("\nListing available nodes:");
-    match storage_api.list_nodes().await {
-        Ok(nodes) => {
-            for node in nodes {
-                println!("Node ID: {}, Address: {}, Available Space: {} bytes", 
-                    node.id, node.address, node.available_space);
-            }
-        }
-        Err(e) => eprintln!("Failed to list nodes: {:?}", e),
-    }
+//     // Keep the main thread running
+//     println!("\nServer running. Press Ctrl+C to exit.");
+//     tokio::signal::ctrl_c().await?;
+//     println!("Shutting down...");
 
-    let mut id= String::from("");
-    // List stored files
-    println!("\nListing stored files:");
-    match storage_api.list_files().await {
-        Ok(files) => {
-            for file in files {
-                println!("File ID: {}, Name: {}, Owner: {}, Size: {} bytes",
-                    file.file_id, file.file_name, file.owner, file.file_size);
-                    if file.file_name == "1. Algorithms and Computation.mp4" {
-                        id = file.file_id;
-                    }
-            }
-        }
-        Err(e) => eprintln!("Failed to list files: {:?}", e),
-    }
-
-    // Download a file
-    let download_path = "C:/Users/melisates/Documents/downloaded_file.mp4";
-    let password = "your-secure-password";
-
-
-    println!("file id: {}", id);
-    println!("\nDownloading file...");
-    match storage_api.download_file_for_reading(&id, download_path, password).await {
-        Ok(_) => println!("File downloaded successfully to: {}", download_path),
-        Err(e) => eprintln!("Failed to download file: {:?}", e),
-    }
-
-    // storage_api.delete_file(&id).await?;
-    // println!("File deleted successfully.");
-
-    // List stored files
-    println!("\nListing stored files:");
-    match storage_api.list_files().await {
-        Ok(files) => {
-            for file in files {
-                println!("File ID: {}, Name: {}, Owner: {}, Size: {} bytes",
-                    file.file_id, file.file_name, file.owner, file.file_size);
-            }
-        }
-        Err(e) => eprintln!("Failed to list files: {:?}", e),
-    }
-
-
-    
-    // // Download a file
-    // let destination_path = "C:/Users/melisates/Documents/downloaded_file.mp4";
-    // storage_api.download_file_for_reading(&id, destination_path, encryption_password);
-
-
-
-    // Keep the main thread running
-    println!("\nServer running. Press Ctrl+C to exit.");
-    tokio::signal::ctrl_c().await?;
-    println!("Shutting down...");
-
-    Ok(())
-}
+//     Ok(())
+// }
 
 
 

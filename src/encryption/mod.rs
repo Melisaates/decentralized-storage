@@ -6,7 +6,8 @@ use std::fs::{File, OpenOptions};
 use std::io::{self, BufWriter, Read, Seek, SeekFrom, Write};use hmac::{Hmac, Mac, NewMac};
 use sha2::Sha256;
 use hex::{encode};
-use crate::storage_api::FileMetadata;
+
+use crate::storage_api_p2p::FileMetadata;
 
 use crate::key_management::{derive_key, encrypt_key_data, generate_key_iv, load_and_decrypt_key,save_encrypted_key_to_store};
 
