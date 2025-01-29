@@ -100,3 +100,37 @@ impl Storage {
     }
 }
 
+
+
+
+/*
+fn main() {
+    let mut storage = Storage::new("node1");
+
+    let file_path = "C:/Users/melisates/Documents/WhatsApp Video 2024-11-03 at 18.47.50_f9c56fbd.mp4";
+    // Örnek dosya verisi (görsel ya da video dosyası)
+    let file_data = Bytes::from("This is a sample file content that could be an image or video.".to_string());
+    let file_type = storage.check_file_type(file_path);
+
+    let file_chunks = Storage::split_file_into_chunks(file_data);
+
+    // Dosyayı parçalar halinde depolama
+    let file = File {
+        id: "file1".to_string(),
+        data: file_chunks,
+        file_type,
+    };
+    storage.store_file(file.clone());
+
+    // Dosyayı indir (parçalı)
+    if let Some(downloaded_chunks) = storage.download_file("file1") {
+        let downloaded_data: String = downloaded_chunks.iter()
+            .map(|chunk| String::from_utf8_lossy(&chunk).to_string())
+            .collect();
+        println!("Downloaded file data: {}", downloaded_data);
+    }
+
+    // Dosya silme (parçalı)
+    storage.delete_file("file1");
+}
+ */

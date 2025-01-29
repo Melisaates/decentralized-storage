@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 use crate::node::StorageNode;
+use crate::storage_;
 
 // Structures for token and storage management
 #[derive(Clone, Serialize, Deserialize)]
@@ -106,22 +107,22 @@ impl ProgrammableBusinessEngine {
     // Node Management
     //Yeni bir node kaydedilir.
     pub fn register_node(&mut self, node_id: &str, total_space: u64) -> Result<(), String> {
-        let node = StorageNode {
-            node_id: node_id.to_string(),
-            available_space: total_space,
+        let node = StorageNode :: new (
+            node_id.to_string(), 
             total_space,
-            health_status: true,
-            last_checked: SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_secs(),
-        };
+        ).await?;
+            // last_checked: SystemTime::now()
+            //     .duration_since(UNIX_EPOCH)
+            //     .unwrap()
+            //     .as_secs(),
+       
 
         self.nodes.insert(node_id.to_string(), node);
         Ok(())
     }
 
     //Yüklenen dosyanın boyutuna göre uygun node seçilir.
+    // Çıktı olarak node id döner.
     pub fn assign_node(&self, file_size: u64) -> Option<String> {
         self.nodes
             .iter()

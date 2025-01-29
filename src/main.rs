@@ -1,43 +1,75 @@
 mod storage_;
+//mod pbe_;
 use bytes::{Bytes, Buf};
+use node::StorageNode;
 use storage_::File;
+mod node;
+mod file_system;
 
 use crate::storage_::Storage;
 
-fn main() {
-    let mut storage = Storage::new("node1");
 
-    let file_path = "C:/Users/melisates/Documents/WhatsApp Video 2024-11-03 at 18.47.50_f9c56fbd.mp4";
-    // Örnek dosya verisi (görsel ya da video dosyası)
-    let file_data = Bytes::from("This is a sample file content that could be an image or video.".to_string());
-    let file_type = storage.check_file_type(file_path);
+use std::time::{SystemTime, UNIX_EPOCH};
+use tokio; // Tokio async runtime
+use anyhow::Result;
+use actix_rt::System;
+use std::time::{Duration, Instant};
 
-    let file_chunks = Storage::split_file_into_chunks(file_data);
+use crate::file_system::{file_operations, FileSystem};
 
-    // Dosyayı parçalar halinde depolama
-    let file = File {
-        id: "file1".to_string(),
-        data: file_chunks,
-        file_type,
-    };
-    storage.store_file(file.clone());
+#[actix_rt::main]
+async fn main() -> Result<()> {
+    // Example: Create a new StorageNode with an ID and total space
+    let node_id = String::from("node_1");
+    // 200 MB total space
+    let total_space = 500 * 1024 * 1024; // Example space of 500MB in bytes
 
-    // Dosyayı indir (parçalı)
-    if let Some(downloaded_chunks) = storage.download_file("file1") {
-        let downloaded_data: String = downloaded_chunks.iter()
-            .map(|chunk| String::from_utf8_lossy(&chunk).to_string())
-            .collect();
-        println!("Downloaded file data: {}", downloaded_data);
+    let mut storage_node = StorageNode::new(node_id, total_space).await?;
+
+    println!("Storage node created with ID: {}", storage_node.node_id);
+    println!("Total space: {} bytes", storage_node.total_space);
+    println!("Available space: {} bytes", storage_node.available_space);
+
+    // Initialize the storage directory and files
+    //storage_node.initialize_storage_file().await?;
+
+    // Simulate storing a file
+    let file_id = "file_1";
+    let data = vec![0u8; 100 * 1024]; // Example data (100KB)
+
+    match storage_node.store_file(file_id, &data).await {
+        Ok(_) => println!("File '{}' stored successfully.", file_id),
+        Err(e) => eprintln!("Error storing file: {}", e),
     }
 
-    // Dosya silme (parçalı)
-    storage.delete_file("file1");
+    // Check available space after storing the file
+    println!("Available space after storing file: {} bytes", storage_node.available_space);
+
+    // Retrieve the stored file
+    //retrieve ne demek? getirme
+    match storage_node.retrieve_file(file_id).await {
+        Ok(retrieved_data) => println!("File '{}' retrieved successfully with {} bytes.", file_id, retrieved_data.len()),
+        Err(e) => eprintln!("Error retrieving file: {}", e),
+    }
+
+    // Perform a health check
+    match storage_node.update_health_status().await {
+        Ok(_) => println!("Storage node health status: {}", storage_node.health_status),
+        Err(e) => eprintln!("Error updating health status: {}", e),
+    }
+
+    // Free up space by deleting a file
+    let file_to_delete = "file_1";
+    match storage_node.free_up_space(file_to_delete) {
+        Ok(_) => println!("Space freed after deleting file '{}'.", file_to_delete),
+        Err(e) => eprintln!("Error deleting file: {}", e),
+    }
+
+    // Check available space after deletion
+    println!("Available space after deletion: {} bytes", storage_node.available_space);
+
+    Ok(())
 }
-
-
-
-
-
 
 
 
