@@ -1,6 +1,6 @@
 use std::fs::{self, File, OpenOptions};
 use std::path::{Path, PathBuf};
-use std::io::{Read, Write};
+use std::io::{self, Read, Write};
 use std::fs::DirBuilder;
 use std::time::{SystemTime, UNIX_EPOCH};
 use actix_rt::System;
@@ -8,6 +8,13 @@ use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use winapi::shared::ntdef::PULARGE_INTEGER;
 use crate::file_system::{file_operations, FileSystem};
+use std::fs::metadata;
+
+#[cfg(target_family = "unix")]
+use std::os::unix::fs::MetadataExt; // Unix için ekstra bilgi
+
+#[cfg(target_family = "windows")]
+use std::os::windows::fs::MetadataExt; // Windows için ekstra bilgi
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct StorageNode {
@@ -23,13 +30,16 @@ impl StorageNode {
     pub async fn initialize_storage_file(&mut self) -> Result<()> {
         let path = Path::new(&self.storage_path);
     
+        
         if path.exists() {
             println!("Storage directory already exists for node {} at {}", self.node_id, self.storage_path);
             // Burada mevcut dosyanın mevcut alanını güncelleyin
-            let available_space = Self::calculate_available_space(&self.storage_path)?;
+            println!("Updating available space...");
+            let available_space = self.calculate_available_space()?;
             self.available_space = available_space;  // Available space güncelleniyor
             println!("Updated available space: {}", self.available_space);
         } else {
+            println!("Creating storage directory for node {} at {}", self.node_id, self.storage_path);
             DirBuilder::new().recursive(true).create(&self.storage_path)?;
         }
         
@@ -40,11 +50,23 @@ impl StorageNode {
         //     writeln!(dir_file, "Capacity: {}", self.total_space)?;
         // }
 
-
+        
         // Create a file to actually reserve the physical space on disk
+        // storage_file.dat is created with the specified capacity
         let storage_file_path = format!("{}/storage_file.dat", self.storage_path);
-        let mut storage_file = fs::File::create(&storage_file_path)?;
-        storage_file.set_len(self.total_space)?;  // Burada dosya boyutu ayarlanıyor
+        let mut storage_file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .open(&storage_file_path)
+            .map_err(|e| anyhow!("Failed to open storage file {}: {}", storage_file_path, e))?;
+        storage_file.set_len(self.total_space)
+            .map_err(|e| anyhow!("Failed to set length for storage file {}: {}", storage_file_path, e))?;
+        storage_file.flush()
+            .map_err(|e| anyhow!("Failed to flush storage file {}: {}", storage_file_path, e))?;  // Önce veriyi yaz
+        storage_file.sync_all()
+            .map_err(|e| anyhow!("Failed to sync storage file {}: {}", storage_file_path, e))?; // Disk senkronizasyonu yap (Windows + Linux)
+        // let mut storage_file = fs::File::create(&storage_file_path)?;
+        // storage_file.set_len(self.total_space)?;  // Burada dosya boyutu ayarlanıyor
         println!("************StorageNode {}: Available space: {}", self.node_id, self.available_space);
     
         // Kontrolleri yap
@@ -74,7 +96,6 @@ impl StorageNode {
             health_status: true,
             last_checked: 0,
         };
-        node.update_available_space()?;  // Update available space dynamically
 
         node.initialize_storage_file().await?;
         node.update_available_space()?;  // Update available space dynamically
@@ -94,7 +115,7 @@ impl StorageNode {
 
     // Update available space based on the current system state
     pub fn update_available_space(&mut self) -> Result<()> {
-        let available_space = Self::calculate_available_space(&self.storage_path)?;
+        let available_space = Self::calculate_available_space(self)?;
         self.available_space = available_space;
         println!(
             "Node {}: Available space updated to {} bytes.",
@@ -119,58 +140,39 @@ impl StorageNode {
     // }
 
 // Updated disk space calculation method
-fn calculate_available_space(path: &str) -> Result<u64> {
-    let path = Path::new(path);
-    
-    // Get available space for the specific path
-    #[cfg(target_family = "unix")]
-    {
-        use std::os::unix::fs::MetadataExt;
-        let metadata = fs::metadata(path).map_err(|e| anyhow!("Failed to get metadata for path {}: {}", path.display(), e))?;
-        let fs_stats = nix::sys::statvfs::statvfs(path)
-            .map_err(|e| anyhow!("Failed to get filesystem stats for path {}: {}", path.display(), e))?;
-        
-        // Calculate available space in bytes
-        let available = fs_stats.block_size() as u64 * fs_stats.blocks_available() as u64;
-        Ok(available)
-    }
+// nasıl hesaplıyor? sözlü olarak: toplam alan - mevcut dosya boyutu
 
-    #[cfg(target_family = "windows")]
-    {
-        use winapi::um::fileapi::{GetDiskFreeSpaceExW};
-        use std::os::windows::ffi::OsStrExt;
-        
-        let wide_path: Vec<u16> = path.as_os_str().encode_wide().chain(std::iter::once(0)).collect();
-        let mut available: u64 = 0;
-        let mut total: u64 = 0;
-        let mut free: u64 = 0;
-        
-        let result = unsafe {
-            GetDiskFreeSpaceExW(
-                wide_path.as_ptr(),
-                &mut available as *mut u64 as PULARGE_INTEGER,
-                &mut total as *mut u64 as PULARGE_INTEGER,
-                &mut free as *mut u64 as PULARGE_INTEGER,
-            )
-        };
-        
-        if result == 0 {
-            Err(anyhow!("Failed to get disk space for path: {}", path.display()))
-        } else {
-            Ok(available)
+
+    pub fn calculate_available_space(&self) -> io::Result<u64> {
+        let storage_dir = Path::new(&self.storage_path);
+
+        if !storage_dir.exists() {
+            return Ok(self.total_space); // Eğer dizin yoksa, tamamen boş kabul et
         }
+
+        let mut used_space = 0;
+
+        for entry in fs::read_dir(storage_dir)? {
+            let entry = entry?;
+            let metadata = entry.metadata()?;
+            used_space += metadata.len();
+        }
+
+        // Platform bağımsız olarak kullanılabilir alanı hesapla
+        let available_space = self.total_space.saturating_sub(used_space);
+
+        println!(
+            "StorageNode {}: Total: {} | Used: {} | Available: {}",
+            self.node_id, self.total_space, used_space, available_space
+        );
+
+        Ok(available_space)
     }
 
-    #[cfg(not(any(target_family = "unix", target_family = "windows")))]
-    {
-        Err(anyhow!("Unsupported platform for disk space calculation"))
-    }
-}
 
 
     pub async fn store_file(&mut self, file_id: &str, data: &[u8]) -> Result<()> {
         // Dynamically update available space each time a file is stored
-        self.update_available_space()?;
         let file_size = data.len() as u64;
         if file_size > self.available_space {
             return Err(anyhow!("Insufficient storage space").into());
@@ -184,10 +186,13 @@ fn calculate_available_space(path: &str) -> Result<u64> {
             .map_err(|e| anyhow!("Error opening file: {}", e))?;
 
         file.write_all(data).map_err(|e| anyhow!("Error writing to file: {}", e))?;
-        let available_space = Self::calculate_available_space(&self.storage_path)?;
-        println!("**********store da  available space: {}", available_space);
         self.available_space -= file_size;
+        
+        self.update_available_space()?;
+        println!("********** After storing file: Available space: {}", self.available_space);
         self.update_health_status().await?;
+        
+
         Ok(())
     }
 
@@ -214,8 +219,8 @@ fn calculate_available_space(path: &str) -> Result<u64> {
         Ok(())
     }
 
-    async fn perform_health_check(&self) -> Result<bool> {
-        let available = Self::calculate_available_space(&self.storage_path)?;
+    async fn perform_health_check(&mut self) -> Result<bool> {
+        let available = self.calculate_available_space()?;
         if available == 0 {
             return Ok(false);
         }
@@ -253,6 +258,7 @@ fn calculate_available_space(path: &str) -> Result<u64> {
                 self.node_id, file_path, full_path.display()
             );
         }
+        self.update_available_space()?;
         Ok(())
     }
     

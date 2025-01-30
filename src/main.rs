@@ -20,9 +20,9 @@ use crate::file_system::{file_operations, FileSystem};
 #[actix_rt::main]
 async fn main() -> Result<()> {
     // Example: Create a new StorageNode with an ID and total space
-    let node_id = String::from("node_1");
+    let node_id = String::from("node_2");
     // 200 MB total space
-    let total_space = 500 * 1024 * 1024; // Example space of 500MB in bytes
+    let total_space = 600 * 1024 * 1024; // Example space of 500MB in bytes
 
     let mut storage_node = StorageNode::new(node_id, total_space).await?;
 
@@ -34,8 +34,9 @@ async fn main() -> Result<()> {
     //storage_node.initialize_storage_file().await?;
 
     // Simulate storing a file
-    let file_id = "file_1";
-    let data = vec![0u8; 100 * 1024]; // Example data (100KB)
+    let file_id = "video_file";
+    let file_path = "C:/Users/melisates/Downloads/1. Algorithms and Computation.mp4";
+    let data = tokio::fs::read(file_path).await?; // Read the file data asynchronously
 
     match storage_node.store_file(file_id, &data).await {
         Ok(_) => println!("File '{}' stored successfully.", file_id),
