@@ -69,13 +69,13 @@ impl Storage {
     //     encrypted_data
     // }
 
-    // // Şifreli veriyi çözme
-    // pub fn decrypt_data(&self, data: &Bytes, key: &[u8; 32]) -> Bytes {
-    //     let cipher = Aes256::new(GenericArray::from_slice(key));
-    //     let mut decrypted_data = data.clone();
-    //     cipher.decrypt_block(&mut decrypted_data);
-    //     decrypted_data
-    // }
+    // Şifreli veriyi çözme
+    pub fn decrypt_data(&self, data: &Bytes, key: &[u8; 32]) -> Bytes {
+        let cipher = Aes256::new(GenericArray::from_slice(key));
+        let mut decrypted_data = data.clone();
+        cipher.decrypt_block(&mut decrypted_data);
+        decrypted_data
+    }
 
     // Dosya parçalara ayırma
     pub fn split_file_into_chunks(file_data: Bytes) -> Vec<Bytes> {

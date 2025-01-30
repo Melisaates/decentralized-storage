@@ -118,6 +118,7 @@ impl ProgrammableBusinessEngine {
        
 
         self.nodes.insert(node_id.to_string(), node);
+        
         Ok(())
     }
 
