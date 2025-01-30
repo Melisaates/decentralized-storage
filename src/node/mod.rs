@@ -5,6 +5,7 @@ use std::fs::DirBuilder;
 use std::time::{SystemTime, UNIX_EPOCH};
 use actix_rt::System;
 use anyhow::{anyhow, Result};
+use futures::future::ok;
 use serde::{Deserialize, Serialize};
 use winapi::shared::ntdef::PULARGE_INTEGER;
 use crate::file_system::{file_operations, FileSystem};
@@ -143,6 +144,7 @@ impl StorageNode {
 // nasıl hesaplıyor? sözlü olarak: toplam alan - mevcut dosya boyutu
 
 
+
     pub fn calculate_available_space(&self) -> io::Result<u64> {
         let storage_dir = Path::new(&self.storage_path);
 
@@ -154,10 +156,14 @@ impl StorageNode {
 
         for entry in fs::read_dir(storage_dir)? {
             let entry = entry?;
+            let path = entry.path();
+            if path.is_file() && path.file_name().unwrap() == "storage_file.dat" {
+            continue; // Skip the storage_file.dat file
+            }
             let metadata = entry.metadata()?;
             used_space += metadata.len();
         }
-
+           
         // Platform bağımsız olarak kullanılabilir alanı hesapla
         let available_space = self.total_space.saturating_sub(used_space);
 
@@ -171,31 +177,64 @@ impl StorageNode {
 
 
 
-    pub async fn store_file(&mut self, file_id: &str, data: &[u8]) -> Result<()> {
-        // Dynamically update available space each time a file is stored
-        let file_size = data.len() as u64;
-        if file_size > self.available_space {
-            return Err(anyhow!("Insufficient storage space").into());
-        }
+ 
 
-        let file_path = self.get_file_path(file_id);
-        let mut file = OpenOptions::new()
-            .write(true)
-            .create(true)
-            .open(file_path)
-            .map_err(|e| anyhow!("Error opening file: {}", e))?;
+pub async fn store_file(&mut self, file_id: &str, source_file_path: &str) -> Result<()> {
+    let source_path = Path::new(source_file_path);
 
-        file.write_all(data).map_err(|e| anyhow!("Error writing to file: {}", e))?;
-        self.available_space -= file_size;
-        
-        self.update_available_space()?;
-        println!("********** After storing file: Available space: {}", self.available_space);
-        self.update_health_status().await?;
-        
-
-        Ok(())
+    if !source_path.exists() {
+        return Err(anyhow!("Source file '{}' does not exist", source_file_path).into());
     }
 
+    let file_size = fs::metadata(source_path)?.len();
+    if file_size > self.available_space {
+        return Err(anyhow!("Insufficient storage space").into());
+    }
+
+    // 🔹 Dosyanın orijinal uzantısını al
+    let extension = source_path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .unwrap_or("");
+
+    // 🔹 Hedef dosya adına uzantıyı ekle
+    let destination_filename = if extension.is_empty() {
+        file_id.to_string()  // Eğer uzantı yoksa, sadece ID kullan
+    } else {
+        format!("{}.{}", file_id, extension) // Örneğin: "12345.mp4"
+    };
+
+    let destination_path = PathBuf::from(self.get_file_path(&destination_filename));
+
+    // 🔹 Dosyayı hedef dizine kopyala
+    fs::copy(source_path, &destination_path)
+        .map_err(|e| anyhow!("Failed to copy file: {}", e))?;
+
+    self.available_space -= file_size;
+
+    // 🔹 `storage_file.dat` boyutunu güncelle
+    let storage_file_path = Path::new(&self.storage_path).join("storage_file.dat");
+    let metadata = fs::metadata(&storage_file_path)?;
+    let new_size = metadata.len().saturating_sub(file_size);
+    
+    fs::OpenOptions::new()
+        .write(true)
+        .open(&storage_file_path)?
+        .set_len(new_size)?;
+
+    println!("storage_file.dat updated: {}", new_size);
+
+    self.update_available_space()?;
+    println!("********** After storing file: Available space: {}", self.available_space);
+    self.update_health_status().await?;
+
+    println!("✅ File stored successfully as: {:?}", destination_path);
+    Ok(())
+}
+
+    
+
+// BU fonksiyonu kullanarak dosya indirme işlemi yapılabilir.
     pub async fn retrieve_file(&self, file_id: &str) -> Result<Vec<u8>> {
         let file_path = self.get_file_path(file_id);
         let mut file = File::open(file_path).map_err(|e| anyhow!("Error opening file: {}", e))?;
@@ -235,36 +274,57 @@ impl StorageNode {
         Ok(true)
     }
 
-    pub fn free_up_space(&mut self, file_path: &str) -> Result<()> {
-        let full_path = self.get_file_path(file_path); // Get the full path using get_file_path
-        
-        // Check if the file exists and delete it
-        if let Ok(metadata) = fs::metadata(&full_path) {
-            let file_size = metadata.len();
-            println!("Deleting file '{}', size: {}", full_path.display(), file_size); // Debugging line
-            
-            fs::remove_file(&full_path)?;
-            self.available_space += file_size;
+
+    pub fn delete_file(&mut self, file_name: &str) -> Result<()> {
+        let storage_path = Path::new(&self.storage_path);
     
-            // Recalculate the available space based on the current disk status
-            // self.available_space = Self::calculate_available_space(&self.storage_path)?;
-            // println!(
-            //     "********** After deletion: StorageNode {}: File '{}' deleted. New available space: {}",
-            //     self.node_id, full_path.display(), self.available_space
-            // );
-        } else {
-            println!(
-                "StorageNode {}: File '{}' does not exist at path '{}'.",
-                self.node_id, file_path, full_path.display()
-            );
+        // Iterate through all files in the storage path
+        let files = fs::read_dir(storage_path)?;
+    
+        for entry in files {
+            let entry = entry?;
+            let file_path = entry.path();
+            
+            // Compare the file name without extension
+            if let Some(file_stem) = file_path.file_stem() {
+                if file_stem == file_name {
+                    // If the names match, delete the file
+                    let file_size = entry.metadata()?.len();
+                    println!("Deleting file '{}', size: {}", file_path.display(), file_size);
+                    
+                    fs::remove_file(&file_path)?;
+                    self.available_space += file_size; // Add the deleted file size to available space
+    
+                    // Update storage_file.dat size
+                    let storage_file_path = Path::new(&self.storage_path).join("storage_file.dat");
+                    if let Ok(metadata) = fs::metadata(&storage_file_path) {
+                        let new_size = metadata.len().saturating_add(file_size);
+                        fs::OpenOptions::new()
+                            .write(true)
+                            .open(&storage_file_path)?
+                            .set_len(new_size)?;
+                    } else {
+                        println!("Warning: storage_file.dat does not exist!");
+                    }
+                    self.update_available_space()?; // Update available space
+                    return Ok(());
+                }
+            }
         }
-        self.update_available_space()?;
+    
+        println!(
+            "StorageNode {}: File '{}' does not exist at '{}'.",
+            self.node_id, file_name, storage_path.display()
+        );
+    
         Ok(())
     }
+
     
     
     
 }
+
 
 
 /*use std::time::{SystemTime, UNIX_EPOCH};

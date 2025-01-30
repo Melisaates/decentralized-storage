@@ -21,8 +21,7 @@ use crate::file_system::{file_operations, FileSystem};
 async fn main() -> Result<()> {
     // Example: Create a new StorageNode with an ID and total space
     let node_id = String::from("node_2");
-    // 200 MB total space
-    let total_space = 600 * 1024 * 1024; // Example space of 500MB in bytes
+    let total_space = 500 * 1024 * 1024; // Example space of 500MB in bytes
 
     let mut storage_node = StorageNode::new(node_id, total_space).await?;
 
@@ -34,11 +33,18 @@ async fn main() -> Result<()> {
     //storage_node.initialize_storage_file().await?;
 
     // Simulate storing a file
-    let file_id = "video_file";
-    let file_path = "C:/Users/melisates/Downloads/1. Algorithms and Computation.mp4";
+    let file_id = "video_1";
+    let file_path = "C:/Users/melisates/Documents/WhatsApp Video 2024-11-03 at 18.47.50_f9c56fbd.mp4";
+    let data = tokio::fs::read(file_path).await?; // Read the file data asynchronously
+    match storage_node.store_file(file_id, &file_path).await {
+        Ok(_) => println!("File '{}' stored successfully.", file_id),
+        Err(e) => eprintln!("Error storing file: {}", e),
+    }
+    let file_id="jpg_1";
+    let file_path = "C:/Users/melisates/Documents/WhatsApp Image 2024-12-01 at 14.40.49_48a551a2.jpg";
     let data = tokio::fs::read(file_path).await?; // Read the file data asynchronously
 
-    match storage_node.store_file(file_id, &data).await {
+    match storage_node.store_file(file_id, &file_path).await {
         Ok(_) => println!("File '{}' stored successfully.", file_id),
         Err(e) => eprintln!("Error storing file: {}", e),
     }
@@ -60,11 +66,19 @@ async fn main() -> Result<()> {
     }
 
     // Free up space by deleting a file
-    let file_to_delete = "file_1";
-    match storage_node.free_up_space(file_to_delete) {
+    let file_to_delete = "jpg_1";
+    match storage_node.delete_file(file_to_delete) {
         Ok(_) => println!("Space freed after deleting file '{}'.", file_to_delete),
         Err(e) => eprintln!("Error deleting file: {}", e),
     }
+
+    let file_to_delete = "video_1";
+    match storage_node.delete_file(file_to_delete) {
+        Ok(_) => println!("Space freed after deleting file '{}'.", file_to_delete),
+        Err(e) => eprintln!("Error deleting file: {}", e),
+    }
+
+
 
     // Check available space after deletion
     println!("Available space after deletion: {} bytes", storage_node.available_space);
