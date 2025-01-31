@@ -106,11 +106,11 @@ impl ProgrammableBusinessEngine {
 
     // Node Management
     //Yeni bir node kaydedilir.
-    pub fn register_node(&mut self, node_id: &str, total_space: u64) -> Result<(), String> {
-        let node = StorageNode :: new (
+    pub async fn register_node(&mut self, node_id: &str, total_space: u64) -> Result<(), String> {
+        let node = StorageNode::new(
             node_id.to_string(), 
             total_space,
-        ).await?;
+        ).await.map_err(|e| e.to_string())?;
             // last_checked: SystemTime::now()
             //     .duration_since(UNIX_EPOCH)
             //     .unwrap()

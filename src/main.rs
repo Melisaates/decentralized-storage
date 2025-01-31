@@ -1,8 +1,9 @@
 mod storage_;
-mod bsc_integration;
-use bsc_integration::BSCIntegration;
+//mod bsc_integration;
+//use bsc_integration::BSCIntegration;
 //mod pbe_;
 use bytes::{Bytes, Buf};
+use futures::future::ok;
 use node::StorageNode;
 use storage_::File;
 mod node;
@@ -16,7 +17,8 @@ mod pbe_;
 use pbe_::ProgrammableBusinessEngine;
 
 use std::error::Error;
-
+mod network;
+use network::{Network};
 
 //node denemee
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -29,6 +31,45 @@ use crate::file_system::{file_operations, FileSystem};
 
 
 
+use std::net::{TcpListener, TcpStream};
+use std::io::{Read, Write};
+use std::thread;
+
+/// Ağ düğümleri arasında iletişim kurmayı sağlayan yapı.
+#[tokio::main]
+
+async fn main() {
+    // Ağ yapılandırması
+    let port = 8080;
+    let network = Network::new(port);
+
+    // Dinleyici başlat
+    thread::spawn(move || {
+        if let Err(e) = network.start_listener() {
+            eprintln!("Ağ dinleyicisi başlatılamadı: {}", e);
+        }
+    });
+
+    // Dinleyicinin başlaması için bekle
+    println!("Ağ başlatılıyor...");
+    thread::sleep(Duration::from_secs(2));
+
+    // Senaryo: Merkeziyetsiz depolama için veri yükleme
+    let data_to_store = "Merkeziyetsiz depolama için örnek veri.".as_bytes();
+    println!("Depolanacak veri: {:?}", String::from_utf8_lossy(data_to_store));
+
+    let address = format!("127.0.0.1:{}", port);
+    println!("Veri gönderilecek adres: {}", address);
+    thread::sleep(Duration::from_secs(10));
+
+
+    // Veriyi göndermek için düğüme bağlan
+    if let Err(e) = Network::send_data(&address, data_to_store) {
+        eprintln!("Veri gönderiminde hata oluştu: {}", e);
+    } else {
+        println!("Veri başarıyla düğüme gönderildi.");
+    }
+}
 
 
 

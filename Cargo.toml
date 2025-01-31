@@ -41,7 +41,6 @@ bytes = "1.1.0"
 nix = "0.29.0"
 winapi = { version = "0.3", features = ["fileapi"] }
 openssl = "0.10.69"
-ethers = "2.0.14"
 
 
 [dev-dependencies]
