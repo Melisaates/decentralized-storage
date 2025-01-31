@@ -23,14 +23,11 @@ use network::{Network};
 //node denemee
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio; // Tokio async runtime
-use anyhow::Result;
 use actix_rt::System;
 use std::time::{Duration, Instant};
 
 use crate::file_system::{file_operations, FileSystem};
-
-
-
+use futures::executor::block_on;
 use std::net::{TcpListener, TcpStream};
 use std::io::{Read, Write};
 use std::thread;
@@ -39,37 +36,84 @@ use std::thread;
 #[tokio::main]
 
 async fn main() {
-    // Ağ yapılandırması
-    let port = 8080;
-    let network = Network::new(port);
+    let mut pbe = ProgrammableBusinessEngine::new(1_000_000); // 1MB per token
 
-    // Dinleyici başlat
-    thread::spawn(move || {
-        if let Err(e) = network.start_listener() {
-            eprintln!("Ağ dinleyicisi başlatılamadı: {}", e);
-        }
-    });
+    // Kullanıcı token stake etme
+    let result = pbe.stake_tokens("user1", 100);
+    match result {
+        Ok(token) => {
+            println!(
+                "User {} staked {} tokens. Storage limit: {} bytes",
+                token.user_id, token.amount, token.storage_limit
+            )
+        },
+        Err(err) => println!("Error staking tokens: {}", err),
+    }
 
-    // Dinleyicinin başlaması için bekle
-    println!("Ağ başlatılıyor...");
-    thread::sleep(Duration::from_secs(2));
+    // Node kaydı
+    let node_result = block_on(pbe.register_node("node1", 1_000_000_000)); // 1GB
+    match node_result {
+        Ok(_) => println!("Node 'node1' successfully registered!"),
+        Err(err) => println!("Error registering node: {}", err),
+    }
 
-    // Senaryo: Merkeziyetsiz depolama için veri yükleme
-    let data_to_store = "Merkeziyetsiz depolama için örnek veri.".as_bytes();
-    println!("Depolanacak veri: {:?}", String::from_utf8_lossy(data_to_store));
-
-    let address = format!("127.0.0.1:{}", port);
-    println!("Veri gönderilecek adres: {}", address);
-    thread::sleep(Duration::from_secs(10));
-
-
-    // Veriyi göndermek için düğüme bağlan
-    if let Err(e) = Network::send_data(&address, data_to_store) {
-        eprintln!("Veri gönderiminde hata oluştu: {}", e);
-    } else {
-        println!("Veri başarıyla düğüme gönderildi.");
+    // Node atanması
+    let assigned_node = pbe.assign_node(100_000_000); // 100MB
+    match assigned_node {
+        Some(node) => println!("File assigned to node: {}", node),
+        None => println!("No suitable node found"),
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//network denemeeeeeeee
+// async fn main() {
+//     // Ağ yapılandırması
+//     let port = 8080;
+//     let network = Network::new(port);
+
+//     // Dinleyici başlat
+//     thread::spawn(move || {
+//         if let Err(e) = network.start_listener() {
+//             eprintln!("Ağ dinleyicisi başlatılamadı: {}", e);
+//         }
+//     });
+
+//     // Dinleyicinin başlaması için bekle
+//     println!("Ağ başlatılıyor...");
+//     thread::sleep(Duration::from_secs(2));
+
+//     // Senaryo: Merkeziyetsiz depolama için veri yükleme
+//     let data_to_store = "Merkeziyetsiz depolama için örnek veri.".as_bytes();
+//     println!("Depolanacak veri: {:?}", String::from_utf8_lossy(data_to_store));
+
+//     let address = format!("127.0.0.1:{}", port);
+//     println!("Veri gönderilecek adres: {}", address);
+//     thread::sleep(Duration::from_secs(10));
+
+
+//     // Veriyi göndermek için düğüme bağlan
+//     if let Err(e) = Network::send_data(&address, data_to_store) {
+//         eprintln!("Veri gönderiminde hata oluştu: {}", e);
+//     } else {
+//         println!("Veri başarıyla düğüme gönderildi.");
+//     }
+// }
 
 
 

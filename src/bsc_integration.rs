@@ -141,22 +141,22 @@ impl ProgrammableBusinessEngine {
     }
 }
 
-// Example usage
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let config = BSCConfig {
-        rpc_url: "https://data-seed-prebsc-1-s1.binance.org:8545".to_string(), // BSC Testnet
-        contract_address: "YOUR_CONTRACT_ADDRESS".to_string(),
-        private_key: "YOUR_PRIVATE_KEY".to_string(),
-    };
+// // Example usage
+// #[tokio::main]
+// async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//     let config = BSCConfig {
+//         rpc_url: "https://data-seed-prebsc-1-s1.binance.org:8545".to_string(), // BSC Testnet
+//         contract_address: "YOUR_CONTRACT_ADDRESS".to_string(),
+//         private_key: "YOUR_PRIVATE_KEY".to_string(),
+//     };
 
-    let bsc = BSCIntegration::new(config).await?;
-    let mut pbe = ProgrammableBusinessEngine::new(1_000_000);
+//     let bsc = BSCIntegration::new(config).await?;
+//     let mut pbe = ProgrammableBusinessEngine::new(1_000_000);
 
-    // Verify user stake
-    let user_address = "USER_BSC_ADDRESS";
-    let storage_limit = pbe.verify_smart_contract_stake(&bsc, user_address).await?;
-    println!("User storage limit: {} bytes", storage_limit);
+//     // Verify user stake
+//     let user_address = "USER_BSC_ADDRESS";
+//     let storage_limit = pbe.verify_smart_contract_stake(&bsc, user_address).await?;
+//     println!("User storage limit: {} bytes", storage_limit);
 
-    Ok(())
-}
+//     Ok(())
+// }

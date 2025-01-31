@@ -8,10 +8,10 @@ use crate::storage_;
 #[derive(Clone, Serialize, Deserialize)]
 //Bir kişinn stake ettigi token miktarı, storage limiti ve tokenin süresi
 pub struct StorageToken {
-    user_id: String,
-    amount: u64,          // Amount of tokens staked
-    storage_limit: u64,   // Storage limit in bytes
-    expiry: u64,         // Unix timestamp
+    pub user_id: String,
+    pub amount: u64,          // Amount of tokens staked
+    pub storage_limit: u64,   // Storage limit in bytes
+    pub expiry: u64,         // Unix timestamp
 }
 
 // #[derive(Clone, Serialize, Deserialize)]
@@ -229,7 +229,7 @@ mod tests {
     #[test]
     fn test_node_assignment() {
         let mut pbe = ProgrammableBusinessEngine::new(1_000_000);
-        pbe.register_node("node1", 1_000_000_000).unwrap(); // 1GB
+        futures::executor::block_on(pbe.register_node("node1", 1_000_000_000)).unwrap(); // 1GB
         let assigned_node = pbe.assign_node(100_000_000); // 100MB
         assert!(assigned_node.is_some());
         assert_eq!(assigned_node.unwrap(), "node1");
