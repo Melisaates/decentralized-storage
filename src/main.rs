@@ -55,8 +55,8 @@ async fn main() -> Result<()> {
     // Retrieve the stored file
     //retrieve ne demek? getirme
     let output_path = "C:/Users/melisates/Downloads";
-    match storage_node.retrieve_file(filev_id, output_path) {
-        Ok(retrieved_data) => println!("File '{}' retrieved successfully.", file_id),
+    match storage_node.retrieve_file(file_id, output_path).await {
+        Ok(_) => println!("File '{}' retrieved successfully.", filev_id),
         Err(e) => eprintln!("Error retrieving file: {}", e),
     }
 
@@ -66,7 +66,7 @@ async fn main() -> Result<()> {
         Err(e) => eprintln!("Error updating health status: {}", e),
     }
 
-    // Free up space by deleting a file
+    //Free up space by deleting a file
     let file_to_delete = "jpg_1";
     match storage_node.delete_file(file_to_delete) {
         Ok(_) => println!("Space freed after deleting file '{}'.", file_to_delete),

@@ -50,10 +50,37 @@ async fn delete_file_handler(
     }
 }
 
+// Bu API endpoint'ini oluşturuyoruz
+async fn download_file(node: web::Data<StorageNode>, web::Path(file_id): web::Path<String>, download_path: web::Query<String>) -> impl Responder {
+    let download_path = download_path.into_inner(); // URL'den gelen path parametresini al
+
+    match node.retrieve_file(&file_id, &download_path) {
+        Ok(_) => HttpResponse::Ok().body(format!("File downloaded to {}", download_path)),
+        Err(e) => HttpResponse::InternalServerError().body(format!("Error downloading file: {}", e)),
+    }
+}
+
+
 
 /*
 #[tokio::main]
 async fn main() {
+//DOWNLOADDDDDDDDDDDDDDDDDDDDDD
+let node = StorageNode {
+        storage_path: "/mnt/storage".to_string(),
+    };
+
+    HttpServer::new(move || {
+        App::new()
+            .app_data(web::Data::new(node.clone()))
+            .wrap(Logger::default())  // Sunucu loglaması
+            .route("/download/{file_id}", web::get().to(download_file)) // API endpoint
+    })
+    .bind("127.0.0.1:8080")?  // Port 8080'de dinlesin
+    .run()
+    .await
+
+
 //uploaddddddddddddddddddddddddd
     let app = Router::new()
         .route("/upload", post(upload_file))

@@ -1,4 +1,4 @@
-use std::fs::{self, File, OpenOptions};
+use std::fs::{self, read_dir, File, OpenOptions};
 use std::path::{Path, PathBuf};
 use std::io::{self, Read, Write};
 use std::fs::DirBuilder;
@@ -234,29 +234,44 @@ pub async fn store_file(&mut self, file_id: &str, source_file_path: &str) -> Res
 
     
 
-pub fn retrieve_file(&self, file_id: &str, download_path: &str) -> Result<()> {
-    let file_path = self.get_file_path(file_id); // Dosyanın depolandığı yolu al
-
-    if !file_path.exists() {
-        return Err(anyhow!("File not found"));
+pub async fn retrieve_file(&mut self, file_id: &str, download_path: &str) -> Result<()> {
+    // Dosyanın bulunduğu dizini al
+    let storage_dir = Path::new(&self.storage_path);
+    
+    // Verilen file_id'ye sahip dosyayı, uzantısı fark etmeksizin bul
+    let mut matched_file: Option<PathBuf> = None;
+    
+    for entry in read_dir(storage_dir)? {
+        let entry = entry?;
+        let file_name = entry.file_name();
+        
+        // Dosyanın ismi file_id ile eşleşiyorsa, matched_file'ı ayarla
+        if file_name.to_str().unwrap_or_default().starts_with(file_id) {
+            matched_file = Some(entry.path());
+            break;
+        }
     }
 
-    // Orijinal dosya adını ve uzantısını al
+    // Eğer dosya bulunamazsa hata döndür
+    let file_path = matched_file.ok_or_else(|| anyhow!("File with ID '{}' not found", file_id))?;
+
+    // Orijinal dosya adı ve uzantısını al
     let file_name = file_path
         .file_name()
         .and_then(|name| name.to_str())
         .unwrap_or("downloaded_file") // Eğer isim alınamazsa default isim ata
         .to_string();
 
+    // Dosyayı oku
     let mut file = File::open(&file_path)?;
     let mut buffer = Vec::new();
-    file.read_to_end(&mut buffer)?; // Dosyanın içeriğini oku
+    file.read_to_end(&mut buffer)?;
 
     // Kullanıcının verdiği dizine, orijinal isimle kaydet
-    let save_path = PathBuf::from(download_path).join(&file_name);
+    let save_path = PathBuf::from(download_path).join(file_name);
     let mut save_file = File::create(&save_path)?;
     save_file.write_all(&buffer)?;
-
+    self.update_health_status().await?;
     println!("File downloaded successfully: {}", save_path.display());
 
     Ok(())
