@@ -1,4 +1,5 @@
 mod storage_;
+mod bsc_;
 //mod pbe_;
 use bytes::{Bytes, Buf};
 use node::StorageNode;
@@ -10,7 +11,8 @@ use encryption::{encrypt_file_chunked, decrypt_file_chunked,encrypt_data_chunked
 mod key_management;
 use key_management::{generate_key_iv, load_and_decrypt_key, save_encrypted_key_to_store};
 use crate::storage_::Storage;
-
+mod pbe_;
+use pbe_::ProgrammableBusinessEngine;
 
 use std::error::Error;
 
@@ -24,6 +26,27 @@ use std::time::{Duration, Instant};
 
 use crate::file_system::{file_operations, FileSystem};
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* 
+//NODE DENEME
 #[actix_rt::main]
 async fn main() -> Result<()> {
     // Example: Create a new StorageNode with an ID and total space
@@ -100,6 +123,7 @@ async fn main() -> Result<()> {
 
     Ok(())
 }
+    */
 
 
 

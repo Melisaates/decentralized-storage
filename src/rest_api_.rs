@@ -106,3 +106,16 @@ let node = StorageNode {
         .await
         .unwrap();
  */
+
+
+ /* HttpServer::new(move || {
+        App::new()
+            .app_data(web::Data::new(disk_manager.clone()))
+            .route("/upload", web::post().to(upload_file))
+            .route("/download/{file_id}", web::get().to(download_file))
+            .route("/space", web::get().to(check_space))
+            .route("/health", web::get().to(health_check))
+    })
+    .bind("127.0.0.1:8080")?
+    .run()
+    .await */
