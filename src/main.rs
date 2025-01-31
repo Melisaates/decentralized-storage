@@ -14,7 +14,9 @@ mod key_management;
 use key_management::{generate_key_iv, load_and_decrypt_key, save_encrypted_key_to_store};
 use crate::storage_::Storage;
 mod pbe_;
-use pbe_::ProgrammableBusinessEngine;
+use pbe_::{AccessType, FileMetadata, Permission, ProgrammableBusinessEngine};
+mod auth;
+use crate::auth::AuthSystem;
 
 use std::error::Error;
 mod network;
@@ -35,35 +37,108 @@ use std::thread;
 /// Ağ düğümleri arasında iletişim kurmayı sağlayan yapı.
 #[tokio::main]
 
+
 async fn main() {
-    let mut pbe = ProgrammableBusinessEngine::new(1_000_000); // 1MB per token
+    // AuthSystem ve ProgrammableBusinessEngine örneklerini oluşturma
+    let mut auth_system = AuthSystem::new();
+    let mut engine = ProgrammableBusinessEngine::new(100);
 
-    // Kullanıcı token stake etme
-    let result = pbe.stake_tokens("user1", 100);
-    match result {
-        Ok(token) => {
-            println!(
-                "User {} staked {} tokens. Storage limit: {} bytes",
-                token.user_id, token.amount, token.storage_limit
-            )
-        },
-        Err(err) => println!("Error staking tokens: {}", err),
+    
+    //engine.verify_smart_contract_stake(contract_address, user_id)
+
+
+    // Örnek kullanıcı kaydı ve oturum açma
+    let user_id = "user123";
+    let password = "password";
+
+    // Kullanıcıyı kaydetme (örnek)
+    auth_system.register_user(user_id, password);
+
+    // Kullanıcı giriş yapma ve token alma
+    let token = match auth_system.login(user_id, password) {
+        Some(token) => token,
+        None => {
+            println!("Kullanıcı doğrulaması başarısız.");
+            return;
+        }
+    };
+
+    engine.stake_tokens(user_id, 1000);
+
+    // Dosya yükleme bilgileri
+    let file_id = "file_001";
+    let file_size = 5000; // 5MB
+    let file_path = "/path/to/file";
+
+    // Depolama izni kontrolü
+    if !engine.check_storage_allowance(user_id, file_size) {
+        println!("Yeterli depolama alanı yok.");
+        return;
     }
 
-    // Node kaydı
-    let node_result = block_on(pbe.register_node("node1", 1_000_000_000)); // 1GB
-    match node_result {
-        Ok(_) => println!("Node 'node1' successfully registered!"),
-        Err(err) => println!("Error registering node: {}", err),
+    engine.register_node("node_1", 100000000);
+    engine.register_node("node_2", 2000000000);
+
+
+    // Uygun depolama düğümünü seçme
+    let node_id = match engine.assign_node(file_size) {
+        Some(node_id) => node_id,
+        None => {
+            println!("Yeterli depolama düğümü bulunamadı.");
+            return;
+        }
+    };
+    engine.update_node_health(&node_id.to_string(), true);
+
+
+    // Depolama düğümünü al
+    engine.check_access(user_id, file_id, AccessType::Write);
+
+    let mut node = match engine.get_node_mut(&node_id) {
+        Some(node) => node,
+        None => {
+            println!("Depolama düğümü bulunamadı.");
+            return;
+        }
+    };
+
+
+    // Dosyayı depolama düğümüne yükleme
+    match node.store_file(file_id, file_path).await {
+        Ok(_) => {
+            println!("Dosya başarıyla yüklendi.");
+        }
+        Err(e) => {
+            println!("Dosya yükleme başarısız: {}", e);
+            return;
+        }
     }
 
-    // Node atanması
-    let assigned_node = pbe.assign_node(100_000_000); // 100MB
-    match assigned_node {
-        Some(node) => println!("File assigned to node: {}", node),
-        None => println!("No suitable node found"),
+    // Dosya meta verisini oluşturma
+    let file_metadata = FileMetadata {
+        file_id: file_id.to_string(),
+        owner_id: user_id.to_string(),
+        size: file_size,
+        node_id: node_id.clone(),
+        created_at: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+        permissions: vec![
+            // Varsayılan izinler (yazma erişimi)
+            Permission {
+                user_id: user_id.to_string(),
+                access_type: AccessType::Write,
+                expiry: None,
+            },
+        ],
+    };
+
+    // Dosya meta verisini kaydetme
+    if let Err(e) = engine.create_file_entry(file_id, user_id, file_size, &node_id) {
+        println!("Dosya meta verisi kaydetme başarısız: {}", e);
+    } else {
+        println!("Dosya meta verisi başarıyla kaydedildi.");
     }
 }
+
 
 
 

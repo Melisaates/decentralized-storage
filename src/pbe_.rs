@@ -27,20 +27,20 @@ pub struct StorageToken {
 #[derive(Clone, Serialize, Deserialize)]
 //Yüklenen dosyanın idsi, sahibinin idsi, boyutu, yüklendiği nodeun idsi, oluşturulma tarihi ve izinleri
 pub struct FileMetadata {
-    file_id: String,
-    owner_id: String,
-    size: u64,
-    node_id: String,
-    created_at: u64,
-    permissions: Vec<Permission>,
+    pub file_id: String,
+    pub owner_id: String,
+    pub size: u64,
+    pub node_id: String,
+    pub created_at: u64,
+    pub permissions: Vec<Permission>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
 //Bir kullanıcının dosyaya erişim izni
 pub struct Permission {
-    user_id: String,
-    access_type: AccessType,
-    expiry: Option<u64>,
+    pub user_id: String,
+    pub access_type: AccessType,
+    pub expiry: Option<u64>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -209,6 +209,9 @@ impl ProgrammableBusinessEngine {
                 .unwrap()
                 .as_secs();
         }
+    }
+    pub fn get_node_mut (& mut self ,node_id: &str) -> Option<&mut StorageNode> {
+        self.nodes.get_mut(node_id)
     }
 }
 
