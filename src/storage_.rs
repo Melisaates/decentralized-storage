@@ -36,14 +36,14 @@ impl Storage {
         println!("Stored file with hash: {} on node {}", hash, self.node_id);
     }
 
-    // Dosyayı indir (parçalı)
-    pub fn download_file(&self, file_name: &str) -> Option<Vec<Bytes>> {
-        if let Some(file) = self.files.get(file_name) {
-            Some(file.data.clone()) // Dosya parçalarını döndürür
-        } else {
-            None
-        }
-    }
+    // // Dosyayı indir (parçalı)
+    // pub fn download_file(&self, file_name: &str) -> Option<Vec<Bytes>> {
+    //     if let Some(file) = self.files.get(file_name) {
+    //         Some(file.data.clone()) // Dosya parçalarını döndürür
+    //     } else {
+    //         None
+    //     }
+    // }
 
     // Dosya silme (parçalı)
     pub fn delete_file(&mut self, file_name: &str) {
