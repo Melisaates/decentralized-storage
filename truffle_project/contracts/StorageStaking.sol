@@ -14,6 +14,8 @@ contract StorageStaking is ReentrancyGuard, Ownable {
         uint256 storageLimit;
         bool active;
     }
+
+   
     
     mapping(address => Stake) public stakes;
     
@@ -27,9 +29,10 @@ contract StorageStaking is ReentrancyGuard, Ownable {
     event Unstaked(address indexed user, uint256 amount);
     event StorageLimitUpdated(address indexed user, uint256 newLimit);
     
-    constructor(address _stakingToken) {
-        stakingToken = IERC20(_stakingToken);
+    constructor(address tokenAddress) {
+        stakingToken = IERC20(tokenAddress);
     }
+    
     
     function stake(uint256 amount) external nonReentrant {
         require(amount > 0, "Cannot stake 0 tokens");

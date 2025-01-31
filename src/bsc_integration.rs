@@ -33,7 +33,7 @@ impl BSCIntegration {
         let client = Arc::new(client);
 
         // Contract ABI
-        const ABI: &str = include_str!("./abi/storage_staking.json");
+        const ABI: &str = include_str!("./tuffle_project/build/contracts/StorageStaking.json");
         
         // Create contract instance
         let contract_addr = Address::from_str(&config.contract_address)?;

@@ -1,5 +1,6 @@
 mod storage_;
-mod bsc_;
+mod bsc_integration;
+use bsc_integration::BSCIntegration;
 //mod pbe_;
 use bytes::{Bytes, Buf};
 use node::StorageNode;
