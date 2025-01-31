@@ -33,11 +33,11 @@ async fn main() -> Result<()> {
     //storage_node.initialize_storage_file().await?;
 
     // Simulate storing a file
-    let file_id = "video_1";
+    let filev_id = "video_1";
     let file_path = "C:/Users/melisates/Documents/WhatsApp Video 2024-11-03 at 18.47.50_f9c56fbd.mp4";
     let data = tokio::fs::read(file_path).await?; // Read the file data asynchronously
-    match storage_node.store_file(file_id, &file_path).await {
-        Ok(_) => println!("File '{}' stored successfully.", file_id),
+    match storage_node.store_file(filev_id, &file_path).await {
+        Ok(_) => println!("File '{}' stored successfully.", filev_id),
         Err(e) => eprintln!("Error storing file: {}", e),
     }
     let file_id="jpg_1";
@@ -54,8 +54,9 @@ async fn main() -> Result<()> {
 
     // Retrieve the stored file
     //retrieve ne demek? getirme
-    match storage_node.retrieve_file(file_id).await {
-        Ok(retrieved_data) => println!("File '{}' retrieved successfully with {} bytes.", file_id, retrieved_data.len()),
+    let output_path = "C:/Users/melisates/Downloads";
+    match storage_node.retrieve_file(filev_id, output_path) {
+        Ok(retrieved_data) => println!("File '{}' retrieved successfully.", file_id),
         Err(e) => eprintln!("Error retrieving file: {}", e),
     }
 

@@ -234,14 +234,33 @@ pub async fn store_file(&mut self, file_id: &str, source_file_path: &str) -> Res
 
     
 
-// BU fonksiyonu kullanarak dosya indirme işlemi yapılabilir.
-    pub async fn retrieve_file(&self, file_id: &str) -> Result<Vec<u8>> {
-        let file_path = self.get_file_path(file_id);
-        let mut file = File::open(file_path).map_err(|e| anyhow!("Error opening file: {}", e))?;
-        let mut buffer = Vec::new();
-        file.read_to_end(&mut buffer).map_err(|e| anyhow!("Error reading file: {}", e))?;
-        Ok(buffer)
+pub fn retrieve_file(&self, file_id: &str, download_path: &str) -> Result<()> {
+    let file_path = self.get_file_path(file_id); // Dosyanın depolandığı yolu al
+
+    if !file_path.exists() {
+        return Err(anyhow!("File not found"));
     }
+
+    // Orijinal dosya adını ve uzantısını al
+    let file_name = file_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("downloaded_file") // Eğer isim alınamazsa default isim ata
+        .to_string();
+
+    let mut file = File::open(&file_path)?;
+    let mut buffer = Vec::new();
+    file.read_to_end(&mut buffer)?; // Dosyanın içeriğini oku
+
+    // Kullanıcının verdiği dizine, orijinal isimle kaydet
+    let save_path = PathBuf::from(download_path).join(&file_name);
+    let mut save_file = File::create(&save_path)?;
+    save_file.write_all(&buffer)?;
+
+    println!("File downloaded successfully: {}", save_path.display());
+
+    Ok(())
+}
 
     // Helper to construct file path
     fn get_file_path(&self, file_id: &str) -> PathBuf {

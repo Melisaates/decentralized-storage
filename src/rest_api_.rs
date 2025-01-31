@@ -59,7 +59,7 @@ async fn main() {
         .route("/upload", post(upload_file))
         .layer(RequestBodyLimitLayer::new(10 * 1024 * 1024)); // 10MB limit
 
-    println!("🚀 Server running at http://127.0.0.1:3000");
+    println!("Server running at http://127.0.0.1:3000");
     axum::Server::bind(&"0.0.0.0:3000".parse().unwrap())
         .serve(app.into_make_service())
         .await
