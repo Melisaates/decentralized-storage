@@ -195,8 +195,7 @@ impl ProgrammableBusinessEngine {
     // Smart Contract Integration
     //Kullanıcının stake ettiği token miktarı kontrol edilir akıllı kontrat üzerinden.
     pub fn verify_smart_contract_stake(&self, contract_address: &str, user_id: &str) -> Result<u64, String> {
-        // This would integrate with Binance Smart Chain
-        // For now, returning a mock implementation
+     
         Ok(100) // Mock token amount
     }
 
