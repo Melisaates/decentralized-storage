@@ -5,10 +5,17 @@ use node::StorageNode;
 use storage_::File;
 mod node;
 mod file_system;
-
+mod encryption;
+use encryption::{encrypt_file_chunked, decrypt_file_chunked,encrypt_data_chunked,decrypt_data_chunked};
+mod key_management;
+use key_management::{generate_key_iv, load_and_decrypt_key, save_encrypted_key_to_store};
 use crate::storage_::Storage;
 
 
+use std::error::Error;
+
+
+//node denemee
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio; // Tokio async runtime
 use anyhow::Result;
@@ -60,6 +67,13 @@ async fn main() -> Result<()> {
         Err(e) => eprintln!("Error retrieving file: {}", e),
     }
 
+
+    match storage_node.retrieve_file(filev_id, output_path).await {
+        Ok(_) => println!("File '{}' retrieved successfully.", filev_id),
+        Err(e) => eprintln!("Error retrieving file: {}", e),
+    }
+
+
     // Perform a health check
     match storage_node.update_health_status().await {
         Ok(_) => println!("Storage node health status: {}", storage_node.health_status),
@@ -67,17 +81,17 @@ async fn main() -> Result<()> {
     }
 
     //Free up space by deleting a file
-    let file_to_delete = "jpg_1";
-    match storage_node.delete_file(file_to_delete) {
-        Ok(_) => println!("Space freed after deleting file '{}'.", file_to_delete),
-        Err(e) => eprintln!("Error deleting file: {}", e),
-    }
+    // let file_to_delete = "jpg_1";
+    // match storage_node.delete_file(file_to_delete) {
+    //     Ok(_) => println!("Space freed after deleting file '{}'.", file_to_delete),
+    //     Err(e) => eprintln!("Error deleting file: {}", e),
+    // }
 
-    let file_to_delete = "video_1";
-    match storage_node.delete_file(file_to_delete) {
-        Ok(_) => println!("Space freed after deleting file '{}'.", file_to_delete),
-        Err(e) => eprintln!("Error deleting file: {}", e),
-    }
+    // let file_to_delete = "video_1";
+    // match storage_node.delete_file(file_to_delete) {
+    //     Ok(_) => println!("Space freed after deleting file '{}'.", file_to_delete),
+    //     Err(e) => eprintln!("Error deleting file: {}", e),
+    // }
 
 
 
@@ -86,6 +100,91 @@ async fn main() -> Result<()> {
 
     Ok(())
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//KEY MANAGEMENT
+// fn main() -> Result<(), Box<dyn Error>> {
+
+//     // Set your environment variable "MASTER_KEY" with a 32-byte key before running
+//     // If not set, the program will panic due to missing MASTER_KEY
+//     // Example: export MASTER_KEY="your_master_key_32bytes_string"
+
+//     // Generate new key and IV
+//     let key_data = generate_key_iv();
+//     println!("KeyData: {:?}", key_data);
+
+
+//     // Save encrypted key data to the key store
+//     let file_id = "file_id";
+//     if let Err(e) = save_encrypted_key_to_store(&key_data, file_id) {
+//         eprintln!("Error saving key: {}", e);
+//         return Err(Box::new(e));
+//     }
+
+//     // Load and decrypt key data
+//     match load_and_decrypt_key(file_id) {
+//         Ok(decrypted_key_data) => {
+//             println!("Decrypted key for file '{}': {:?}", file_id, decrypted_key_data.key);
+//         }
+//         Err(e) => {
+//             eprintln!("Error loading and decrypting key: {}", e);
+//         }
+//     }
+
+
+//     Ok(())
+// }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

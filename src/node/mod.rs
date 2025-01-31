@@ -8,6 +8,7 @@ use anyhow::{anyhow, Result};
 use futures::future::ok;
 use serde::{Deserialize, Serialize};
 use winapi::shared::ntdef::PULARGE_INTEGER;
+use crate::encryption::{decrypt_data_chunked, encrypt_data_chunked};
 use crate::file_system::{file_operations, FileSystem};
 use std::fs::metadata;
 
@@ -178,105 +179,113 @@ impl StorageNode {
 
 
  
-
-pub async fn store_file(&mut self, file_id: &str, source_file_path: &str) -> Result<()> {
-    let source_path = Path::new(source_file_path);
-
-    if !source_path.exists() {
-        return Err(anyhow!("Source file '{}' does not exist", source_file_path).into());
-    }
-
-    let file_size = fs::metadata(source_path)?.len();
-    if file_size > self.available_space {
-        return Err(anyhow!("Insufficient storage space").into());
-    }
-
-    // 🔹 Dosyanın orijinal uzantısını al
-    let extension = source_path
-        .extension()
-        .and_then(|ext| ext.to_str())
-        .unwrap_or("");
-
-    // 🔹 Hedef dosya adına uzantıyı ekle
-    let destination_filename = if extension.is_empty() {
-        file_id.to_string()  // Eğer uzantı yoksa, sadece ID kullan
-    } else {
-        format!("{}.{}", file_id, extension) // Örneğin: "12345.mp4"
-    };
-
-    let destination_path = PathBuf::from(self.get_file_path(&destination_filename));
-
-    // 🔹 Dosyayı hedef dizine kopyala
-    fs::copy(source_path, &destination_path)
-        .map_err(|e| anyhow!("Failed to copy file: {}", e))?;
-
-    self.available_space -= file_size;
-
-    // 🔹 `storage_file.dat` boyutunu güncelle
-    let storage_file_path = Path::new(&self.storage_path).join("storage_file.dat");
-    let metadata = fs::metadata(&storage_file_path)?;
-    let new_size = metadata.len().saturating_sub(file_size);
+    pub async fn store_file(&mut self, file_id: &str, source_file_path: &str) -> Result<()> {
+        let source_path = Path::new(source_file_path);
     
-    fs::OpenOptions::new()
-        .write(true)
-        .open(&storage_file_path)?
-        .set_len(new_size)?;
-
-    println!("storage_file.dat updated: {}", new_size);
-
-    self.update_available_space()?;
-    println!("********** After storing file: Available space: {}", self.available_space);
-    self.update_health_status().await?;
-
-    println!("✅ File stored successfully as: {:?}", destination_path);
-    Ok(())
-}
-
-    
-
-pub async fn retrieve_file(&mut self, file_id: &str, download_path: &str) -> Result<()> {
-    // Dosyanın bulunduğu dizini al
-    let storage_dir = Path::new(&self.storage_path);
-    
-    // Verilen file_id'ye sahip dosyayı, uzantısı fark etmeksizin bul
-    let mut matched_file: Option<PathBuf> = None;
-    
-    for entry in read_dir(storage_dir)? {
-        let entry = entry?;
-        let file_name = entry.file_name();
-        
-        // Dosyanın ismi file_id ile eşleşiyorsa, matched_file'ı ayarla
-        if file_name.to_str().unwrap_or_default().starts_with(file_id) {
-            matched_file = Some(entry.path());
-            break;
+        if !source_path.exists() {
+            return Err(anyhow!("Source file '{}' does not exist", source_file_path).into());
         }
+    
+        let file_size = fs::metadata(source_path)?.len();
+        if file_size > self.available_space {
+            return Err(anyhow!("Insufficient storage space").into());
+        }
+    
+        // 🔹 Dosyanın orijinal uzantısını al
+        let extension = source_path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .unwrap_or("");
+    
+        // 🔹 Hedef dosya adına uzantıyı ekle
+        let destination_filename = if extension.is_empty() {
+            file_id.to_string()  // Eğer uzantı yoksa, sadece ID kullan
+        } else {
+            format!("{}.{}", file_id, extension) // Örneğin: "12345.mp4"
+        };
+    
+        let destination_path = PathBuf::from(self.get_file_path(&destination_filename));
+    
+        // 🔹 Dosya içeriğini oku ve şifrele
+        let file_data = fs::read(source_path)?;
+        let encrypted_data = encrypt_data_chunked(file_id, &file_data)?;
+    
+        // 🔹 Şifrelenmiş veriyi hedef dosyaya yaz
+        fs::write(&destination_path, encrypted_data)
+            .map_err(|e| anyhow!("Failed to write encrypted file: {}", e))?;
+    
+        self.available_space -= file_size;
+    
+        // 🔹 `storage_file.dat` boyutunu güncelle
+        let storage_file_path = Path::new(&self.storage_path).join("storage_file.dat");
+        let metadata = fs::metadata(&storage_file_path)?;
+        let new_size = metadata.len().saturating_sub(file_size);
+        
+        fs::OpenOptions::new()
+            .write(true)
+            .open(&storage_file_path)?
+            .set_len(new_size)?;
+    
+        println!("storage_file.dat updated: {}", new_size);
+    
+        self.update_available_space()?;
+        println!("********** After storing file: Available space: {}", self.available_space);
+        self.update_health_status().await?;
+    
+        println!("✅ Encrypted file stored successfully as: {:?}", destination_path);
+        Ok(())
     }
-
-    // Eğer dosya bulunamazsa hata döndür
-    let file_path = matched_file.ok_or_else(|| anyhow!("File with ID '{}' not found", file_id))?;
-
-    // Orijinal dosya adı ve uzantısını al
-    let file_name = file_path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .unwrap_or("downloaded_file") // Eğer isim alınamazsa default isim ata
-        .to_string();
-
-    // Dosyayı oku
-    let mut file = File::open(&file_path)?;
-    let mut buffer = Vec::new();
-    file.read_to_end(&mut buffer)?;
-
-    // Kullanıcının verdiği dizine, orijinal isimle kaydet
-    let save_path = PathBuf::from(download_path).join(file_name);
-    let mut save_file = File::create(&save_path)?;
-    save_file.write_all(&buffer)?;
-    self.update_health_status().await?;
-    println!("File downloaded successfully: {}", save_path.display());
-
-    Ok(())
-}
-
+    
+    pub async fn retrieve_file(&mut self, file_id: &str, download_path: &str) -> Result<()> {
+        // Dosyanın bulunduğu dizini al
+        let storage_dir = Path::new(&self.storage_path);
+        
+        // Verilen file_id'ye sahip dosyayı, uzantısı fark etmeksizin bul
+        let mut matched_file: Option<PathBuf> = None;
+        
+        for entry in read_dir(storage_dir)? {
+            let entry = entry?;
+            let file_name = entry.file_name();
+            
+            // Dosyanın ismi file_id ile eşleşiyorsa, matched_file'ı ayarla
+            if file_name.to_str().unwrap_or_default().starts_with(file_id) {
+                matched_file = Some(entry.path());
+                break;
+            }
+        }
+    
+        // Eğer dosya bulunamazsa hata döndür
+        let file_path = matched_file.ok_or_else(|| anyhow!("File with ID '{}' not found", file_id))?;
+    
+        // Orijinal dosya adı ve uzantısını al
+        let file_name = file_path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("downloaded_file") // Eğer isim alınamazsa default isim ata
+            .to_string();
+    
+        // Dosyayı oku
+        let mut file = File::open(&file_path)?;
+        let mut buffer = Vec::new();
+        file.read_to_end(&mut buffer)?;
+    
+        // Şifreli veriyi çöz
+        let decrypted_data = decrypt_data_chunked(file_id, &buffer)
+            .map_err(|e| anyhow!("Decryption failed: {}", e))?;
+    
+        // Kullanıcının verdiği dizine, orijinal isimle kaydet
+        let save_path = PathBuf::from(download_path).join(file_name);
+        let mut save_file = File::create(&save_path)?;
+        save_file.write_all(&decrypted_data)?;
+    
+        // Sağlık durumunu güncelle
+        self.update_health_status().await?;
+        
+        println!("File downloaded and decrypted successfully: {}", save_path.display());
+    
+        Ok(())
+    }
+    
     // Helper to construct file path
     fn get_file_path(&self, file_id: &str) -> PathBuf {
         Path::new(&self.storage_path).join(file_id)
