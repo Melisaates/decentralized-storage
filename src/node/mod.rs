@@ -191,32 +191,32 @@ impl StorageNode {
             return Err(anyhow!("Insufficient storage space").into());
         }
     
-        // 🔹 Dosyanın orijinal uzantısını al
+        // Dosyanın orijinal uzantısını al
         let extension = source_path
             .extension()
             .and_then(|ext| ext.to_str())
             .unwrap_or("");
     
-        // 🔹 Hedef dosya adına uzantıyı ekle
+        //Hedef dosya adına uzantıyı ekle
         let destination_filename = if extension.is_empty() {
             file_id.to_string()  // Eğer uzantı yoksa, sadece ID kullan
         } else {
-            format!("{}.{}", file_id, extension) // Örneğin: "12345.mp4"
+            format!("{}.{}", file_id, extension) // Örnk:"12345.mp4"
         };
     
         let destination_path = PathBuf::from(self.get_file_path(&destination_filename));
     
-        // 🔹 Dosya içeriğini oku ve şifrele
+        //Dosya icerigini oku ve şifrele
         let file_data = fs::read(source_path)?;
         let encrypted_data = encrypt_data_chunked(file_id, &file_data)?;
     
-        // 🔹 Şifrelenmiş veriyi hedef dosyaya yaz
+        //Şifrelenmiş veriyi hedef dosyaya yaz
         fs::write(&destination_path, encrypted_data)
             .map_err(|e| anyhow!("Failed to write encrypted file: {}", e))?;
     
         self.available_space -= file_size;
     
-        // 🔹 `storage_file.dat` boyutunu güncelle
+        //storage_file.dat` boyutunu güncelle
         let storage_file_path = Path::new(&self.storage_path).join("storage_file.dat");
         let metadata = fs::metadata(&storage_file_path)?;
         let new_size = metadata.len().saturating_sub(file_size);
@@ -232,7 +232,7 @@ impl StorageNode {
         println!("********** After storing file: Available space: {}", self.available_space);
         self.update_health_status().await?;
     
-        println!("✅ Encrypted file stored successfully as: {:?}", destination_path);
+        println!("Encrypted file stored successfully as: {:?}", destination_path);
         Ok(())
     }
     

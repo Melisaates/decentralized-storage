@@ -3,7 +3,8 @@ use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 use crate::node::StorageNode;
 use crate::storage_;
-
+mod proof_of_spacetime;
+use crate::pro
 // Structures for token and storage management
 #[derive(Clone, Serialize, Deserialize)]
 //Bir kişinn stake ettigi token miktarı, storage limiti ve tokenin süresi
@@ -52,7 +53,7 @@ pub enum AccessType {
 }
 
 pub struct ProgrammableBusinessEngine {
-    tokens: HashMap<String, StorageToken>,
+    pub tokens: HashMap<String, StorageToken>,
     nodes: HashMap<String, StorageNode>,
     files: HashMap<String, FileMetadata>,
     // Token rate is the amount of storage bytes per token
@@ -121,6 +122,8 @@ impl ProgrammableBusinessEngine {
         
         Ok(())
     }
+
+    
 
     //Yüklenen dosyanın boyutuna göre uygun node seçilir.
     // Çıktı olarak node id döner.
@@ -192,12 +195,12 @@ impl ProgrammableBusinessEngine {
             .sum()
     }
 
-    // Smart Contract Integration
-    //Kullanıcının stake ettiği token miktarı kontrol edilir akıllı kontrat üzerinden.
-    pub fn verify_smart_contract_stake(&self, contract_address: &str, user_id: &str) -> Result<u64, String> {
+    // // Smart Contract Integration
+    // //Kullanıcının stake ettiği token miktarı kontrol edilir akıllı kontrat üzerinden.
+    // pub fn verify_smart_contract_stake(&self, contract_address: &str, user_id: &str) -> Result<u64, String> {
      
-        Ok(100) // Mock token amount
-    }
+    //     Ok(100) // Mock token amount
+    // }
 
     // Node Health Monitoring
     pub fn update_node_health(&mut self, node_id: &str, is_healthy: bool) {
@@ -212,6 +215,7 @@ impl ProgrammableBusinessEngine {
     pub fn get_node_mut (& mut self ,node_id: &str) -> Option<&mut StorageNode> {
         self.nodes.get_mut(node_id)
     }
+
 }
 
 // Tests

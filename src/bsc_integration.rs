@@ -1,13 +1,16 @@
 use ethers::{
     contract::Contract,
     middleware::SignerMiddleware,
-    providers::{Http, Provider},
+    providers::{Http, Middleware, Provider},
     signers::{LocalWallet, Signer},
-    types::{Address, U256},
+    types::{Address, U256}, 
+    abi::Abi,
 };
 use std::sync::Arc;
 use std::str::FromStr;
 use serde::{Deserialize, Serialize};
+
+use crate::pbe_::{ProgrammableBusinessEngine, StorageToken};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct BSCConfig {
@@ -33,11 +36,12 @@ impl BSCIntegration {
         let client = Arc::new(client);
 
         // Contract ABI
-        const ABI: &str = include_str!("./tuffle_project/build/contracts/StorageStaking.json");
+        const ABI: &str = include_str!("../truffle_project/build/contracts/StorageStaking.json");
         
         // Create contract instance
         let contract_addr = Address::from_str(&config.contract_address)?;
-        let contract = Contract::new(contract_addr, serde_json::from_str(ABI)?, client);
+        let abi: Abi = serde_json::from_str(ABI)?;
+        let contract = Contract::new(contract_addr, abi, client);
 
         Ok(Self {
             contract: Arc::new(contract),

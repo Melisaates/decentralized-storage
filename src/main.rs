@@ -16,8 +16,10 @@ use crate::storage_::Storage;
 mod pbe_;
 use pbe_::{AccessType, FileMetadata, Permission, ProgrammableBusinessEngine};
 mod auth;
+mod bsc_integration;
+use bsc_integration::BSCIntegration;
 use crate::auth::AuthSystem;
-
+mod proof_of_spacetime;
 use std::error::Error;
 mod network;
 use network::{Network};
