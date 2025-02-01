@@ -6,50 +6,27 @@ use std::io::{Read, Seek};
 use std::time::{Duration, SystemTime};
 use tokio::time::{sleep, Duration as TokioDuration};
 
-const CHALLENGE_TIMEOUT: Duration = Duration::new(30, 0); // 20 minutes=20*60
+use crate::node::StorageNode;
+use crate::storage_::Storage;
+
+const CHALLENGE_TIMEOUT: Duration = Duration::new(30, 0); // 30 seconds timeout
 
 // Generates a random word.
 fn generate_random_challenge() -> String {
     let mut range = thread_rng();
-
-    // Generates a random word of 10 characters
-    let challenge_word: String = (0..10)
-        .map(|_| range.gen_range(b'a'..=b'z') as char)
-        .collect();
-    challenge_word
+    (0..10).map(|_| range.gen_range(b'a'..=b'z') as char).collect()
 }
 
 // Reads a random part of the file.
 fn get_random_file_part(file_path: &str, byte_count: usize) -> Result<Vec<u8>, String> {
-    let mut file = match File::open(file_path) {
-        Ok(file) => file,
-        Err(e) => return Err(format!("Failed to open file: {}", e)),
-    };
-
-    let file_size = match metadata(file_path) {
-        Ok(meta) => meta.len() as usize,
-        Err(e) => return Err(format!("Failed to get file metadata: {}", e)),
-    };
-
-    // Handle small files by adjusting byte count dynamically
+    let mut file = File::open(file_path).map_err(|e| format!("Failed to open file: {}", e))?;
+    let file_size = metadata(file_path).map_err(|e| format!("Failed to get file metadata: {}", e))?.len() as usize;
     let byte_count = std::cmp::min(byte_count, file_size);
-
     let mut range = thread_rng();
     let start_byte = range.gen_range(0..file_size - byte_count);
-
     let mut buffer = vec![0; byte_count];
-
-    // Seek to the random starting byte and read
-    if let Err(e) = file.seek(std::io::SeekFrom::Start(start_byte as u64)) {
-        return Err(format!("Failed to seek in file: {}", e));
-    }
-
-    if let Err(e) = file.read_exact(&mut buffer) {
-        return Err(format!("Failed to read data from file: {}", e));
-    }
-    
-    println!("buffer: {:?}", buffer);
-
+    file.seek(std::io::SeekFrom::Start(start_byte as u64)).map_err(|e| format!("Failed to seek in file: {}", e))?;
+    file.read_exact(&mut buffer).map_err(|e| format!("Failed to read data from file: {}", e))?;
     Ok(buffer)
 }
 
@@ -58,82 +35,48 @@ fn generate_hash(file_part: &[u8], challenge_word: &str) -> Vec<u8> {
     let mut hasher = Sha256::new();
     hasher.update(file_part);
     hasher.update(challenge_word.as_bytes());
-
     hasher.finalize().to_vec()
 }
 
 // Function that responds to the challenge.
 fn respond_to_challenge(storage_path: &str) -> Result<Vec<u8>, String> {
-    // List all files in the storage path and choose one randomly
-    let paths = match read_dir(storage_path) {
-        Ok(paths) => paths,
-        Err(e) => return Err(format!("Failed to read storage directory: {}", e)),
-    };
-
-    let mut files: Vec<String> = Vec::new();
-
-    for path in paths {
-        match path {
-            Ok(entry) => {
-                let file_name = entry.file_name().into_string().unwrap();
-                files.push(file_name);
-            }
-            Err(_) => continue,
-        }
-    }
-
+    let paths = read_dir(storage_path).map_err(|e| format!("Failed to read storage directory: {}", e))?;
+    let mut files: Vec<String> = paths.filter_map(|entry| entry.ok().map(|e| e.file_name().into_string().unwrap())).collect();
     if files.is_empty() {
         return Err("No files found in the storage directory.".to_string());
     }
-
-    // Choose a random file
     let mut range = thread_rng();
-    let random_file = files.choose(&mut range).unwrap();
-
-    println!("Selected File: {}", random_file);
-
-    // Get a random part of the selected file
-    let file_part = match get_random_file_part(&format!("{}/{}", storage_path, random_file), 100) {
-        Ok(part) => part,
-        Err(err) => return Err(err),
-    };
-
-    // Generate the hash
+    let random_file = files.choose(&mut range).ok_or("No valid files available.".to_string())?;
+    let file_part = get_random_file_part(&format!("{}/{}", storage_path, random_file), 100)?;
     let challenge_word = generate_random_challenge();
-    println!("Challenge Word: {}", challenge_word);
-
     let response_hash = generate_hash(&file_part, &challenge_word);
-    println!("Generated Hash: {:?}", response_hash);
-
-    // Return the hash
     Ok(response_hash)
 }
 
-// Challenge process and time check
-fn proof_of_spacetime(storage_path: &str) {
+// Checks proof-of-spacetime for a given node
+fn proof_of_spacetime(node: &StorageNode) {
     let start_time = SystemTime::now();
-
-    // Get response to the challenge
-    match respond_to_challenge(storage_path) {
+    match respond_to_challenge(&node.storage_path) {
         Ok(response_hash) => {
             let elapsed = SystemTime::now().duration_since(start_time).unwrap();
             if elapsed <= CHALLENGE_TIMEOUT {
-                // If responded in time, validation is successful
-                println!("Challenge passed! Hash: {:?}", response_hash);
+                println!("Node {} passed challenge! Hash: {:?}", node.node_id, response_hash);
             } else {
-                println!("Challenge failed: Timeout.");
+                println!("Node {} failed challenge: Timeout.", node.node_id);
             }
         }
         Err(err) => {
-            println!("Error while processing challenge: {}", err);
+            println!("Node {} error while processing challenge: {}", node.node_id, err);
         }
     }
 }
 
-// Function that periodically calls proof_of_spacetime
-pub async fn periodic_check(storage_path: &str) {
+// Periodically checks proof-of-spacetime for all nodes
+pub async fn periodic_check(nodes: Vec<StorageNode>) {
     loop {
-        proof_of_spacetime(storage_path);
-        sleep(TokioDuration::from_secs(30)).await; // 1200 seconds wait
+        for node in &nodes {
+            proof_of_spacetime(node);
+        }
+        sleep(TokioDuration::from_secs(30)).await; // Wait 30 seconds before next check
     }
-} 
+}

@@ -5,6 +5,7 @@ mod storage_;
 use bytes::{Bytes, Buf};
 use futures::future::ok;
 use node::StorageNode;
+use proof_of_spacetime::periodic_check;
 use storage_::File;
 mod node;
 mod file_system;
@@ -65,12 +66,13 @@ async fn main() {
         }
     };
 
-    engine.stake_tokens(user_id, 1000);
+    engine.stake_tokens(user_id, 900000);
+
 
     // Dosya yükleme bilgileri
-    let file_id = "file_001";
-    let file_size = 5000; // 5MB
-    let file_path = "/path/to/file";
+    let file_id = "file_003";
+    let file_path = "C:/Users/melisates/Documents/WhatsApp Video 2024-11-03 at 18.47.50_f9c56fbd.mp4";
+    let file_size = std::fs::metadata(file_path).unwrap().len();
 
     // Depolama izni kontrolü
     if !engine.check_storage_allowance(user_id, file_size) {
@@ -78,8 +80,21 @@ async fn main() {
         return;
     }
 
-    engine.register_node("node_1", 100000000);
-    engine.register_node("node_2", 2000000000);
+    if let Err(e) = engine.register_node("node_1", 90000000).await {
+        println!("Failed to register node_1: {}", e);
+        return;
+    }
+    if let Err(e) = engine.register_node("node_2", 9000000000).await {
+        println!("Failed to register node_2: {}", e);
+        return;
+    }
+
+    let nodes_map = engine.get_all_nodes().await;
+    let nodes: Vec<StorageNode> = nodes_map.into_values().collect();
+
+    tokio::spawn(async move {
+        periodic_check(nodes).await;
+    });
 
 
     // Uygun depolama düğümünü seçme

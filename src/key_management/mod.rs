@@ -7,6 +7,7 @@ use serde::{Serialize, Deserialize};
 use aes::{Aes256};
 use block_modes::{BlockMode, Cbc};
 use block_modes::block_padding::Pkcs7;
+use dotenv::dotenv;
 
 // Define AES-256 CBC type
 type Aes256Cbc = Cbc<Aes256, Pkcs7>;
@@ -35,6 +36,7 @@ chmod 600 keys/key_data.json */
 use std::env;
 
 fn get_master_key() -> [u8; 32] {
+    dotenv().ok(); // This will load the .env file into the environment variables
     let key_str = env::var("MASTER_KEY").expect("MASTER_KEY is not set!");
     let key_bytes = key_str.as_bytes();
     

@@ -2,9 +2,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 use crate::node::StorageNode;
-use crate::storage_;
-mod proof_of_spacetime;
-use crate::pro
+use crate::proof_of_spacetime::periodic_check;
+
+
 // Structures for token and storage management
 #[derive(Clone, Serialize, Deserialize)]
 //Bir kişinn stake ettigi token miktarı, storage limiti ve tokenin süresi
@@ -96,6 +96,8 @@ impl ProgrammableBusinessEngine {
     pub fn check_storage_allowance(&self, user_id: &str, required_space: u64) -> bool {
         if let Some(token) = self.tokens.get(user_id) {
             let current_usage = self.get_user_storage_usage(user_id);
+            println!("Token storage limit: {:?}", token.storage_limit);
+
             token.storage_limit >= current_usage + required_space && token.expiry > SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .unwrap()
@@ -108,6 +110,7 @@ impl ProgrammableBusinessEngine {
     // Node Management
     //Yeni bir node kaydedilir.
     pub async fn register_node(&mut self, node_id: &str, total_space: u64) -> Result<(), String> {
+        println!("Node registered: {:?}", node_id);
         let node = StorageNode::new(
             node_id.to_string(), 
             total_space,
@@ -117,17 +120,22 @@ impl ProgrammableBusinessEngine {
             //     .unwrap()
             //     .as_secs(),
        
-
+println!("Node available miktarı registered: {:?}", node.available_space);
         self.nodes.insert(node_id.to_string(), node);
         
         Ok(())
     }
 
+    pub async fn get_all_nodes(&self) -> HashMap<String, StorageNode> {
+        self.nodes.clone()
+    }
     
 
     //Yüklenen dosyanın boyutuna göre uygun node seçilir.
     // Çıktı olarak node id döner.
     pub fn assign_node(&self, file_size: u64) -> Option<String> {
+        println!("File size: {:?}", file_size);
+        println!("Nodes: {:?}", self.nodes);
         self.nodes
             .iter()
             .find(|(_, node)| node.available_space >= file_size && node.health_status)

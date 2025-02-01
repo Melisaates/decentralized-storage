@@ -21,7 +21,7 @@ use std::os::windows::fs::MetadataExt; // Windows için ekstra bilgi
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct StorageNode {
     pub node_id: String,
-    storage_path: String,
+    pub storage_path: String,
     pub total_space: u64,
     pub available_space: u64,
     pub health_status: bool,
