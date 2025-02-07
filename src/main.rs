@@ -1,4 +1,8 @@
 mod storage_;
+use actix_web::dev::Service;
+use actix_web::middleware::Logger;
+use actix_web::{web, App, HttpResponse, HttpServer};
+use api_::{config, upload_file};
 //mod bsc_integration;
 //use bsc_integration::BSCIntegration;
 //mod pbe_;
@@ -38,10 +42,64 @@ use std::net::{TcpListener, TcpStream};
 use std::io::{Read, Write};
 use std::thread;
 
-/// Ağ düğümleri arasında iletişim kurmayı sağlayan yapı.
-#[tokio::main]
 
 
+fn init_logger() {
+    // Actix Web loglarını debug modunda aktif hale getir
+    std::env::set_var("RUST_LOG", "actix_web=debug");
+    env_logger::init();
+}
+
+use std::sync::Arc;
+use tokio::sync::Mutex;
+
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
+    std::env::set_var("RUST_LOG", "actix_web=debug");
+
+    // StorageNode'u bir kez başlatıyoruz
+    let storage_node = StorageNode::new("node1".to_string(), 10_000_000_000).await
+        .map_err(|e| {
+            eprintln!("StorageNode initialization failed: {:?}", e);
+            std::io::Error::new(std::io::ErrorKind::Other, "StorageNode initialization failed")
+        })?;
+
+    println!("Storage node created with ID: {}", storage_node.node_id);
+
+    // StorageNode'u Arc ile sarmalayarak, thread-safe hale getiriyoruz
+    let storage_node_data = web::Data::new(Arc::new(Mutex::new(storage_node)));
+
+    // HttpServer sadece bir kez başlatılmalı
+    HttpServer::new(move || {
+        println!("Creating new App instance...");
+        App::new()
+            .app_data(storage_node_data.clone()) // storage_node'u uygulama ile paylaşıyoruz
+            .wrap(actix_web::middleware::Logger::default()) // Loglama middleware'i ekliyoruz
+            .wrap_fn(|req, srv| {
+                let fut = srv.call(req);
+                async {
+                    match fut.await {
+                        Ok(res) => Ok(res),
+                        Err(err) => {
+                            println!("Error: {:?}", err);
+                            Err(err)
+                        }
+                    }
+                }
+            })
+            .service(upload_file)    // upload_file servisini ekliyoruz
+            .default_service(web::to(|| HttpResponse::NotFound()))  // 404 handler
+    })
+    .bind("127.0.0.1:8080")?
+    .run()
+    .await
+}
+
+
+
+
+
+/* 
 async fn main() {
     // AuthSystem ve ProgrammableBusinessEngine örneklerini oluşturma
     let mut auth_system = AuthSystem::new();
@@ -158,7 +216,7 @@ async fn main() {
 }
 
 
-
+*/
 
 
 

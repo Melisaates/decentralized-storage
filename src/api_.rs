@@ -1,65 +1,164 @@
-use actix_web::{web::{self, Query}, HttpResponse};
-use axum::{extract::{Multipart, Path}, routing::post, Json, Router, response::IntoResponse};
+use actix_web::{web::{self, Query}, HttpResponse, Responder};
+use async_std::stream::StreamExt;
+use serde::Deserialize;
+use actix_multipart::Multipart;
+use axum::{extract::Path, routing::post, Json, Router, response::IntoResponse};
 use std::{fs::File, io::Write};
+use actix_web::Error;
 use tower_http::limit::RequestBodyLimitLayer;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use crate::node::{StorageNode, delete_file};
+use crate::node::StorageNode;
 
-// Dosya yükleme işlemi
-async fn upload_file(mut multipart: Multipart) -> Result<String, axum::http::StatusCode> {
-    while let Some(field) = multipart.next_field().await.unwrap() {
-        let file_name = field.file_name().unwrap().to_string();
-        let data = field.bytes().await.unwrap();
-        
-        // Storage path'ini oluşturun
-        let storage_path = format!("./storage/{}", file_name);
-        let mut file = File::create(&storage_path)
-            .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;
-        
-        // Dosya verisini yazın
-        file.write_all(&data)
-            .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;
-        
-        println!("✅ File '{}' uploaded successfully!", file_name);
-        
-        // `StorageNode` ile dosyayı saklama
-        let mut storage_node = StorageNode::new("storage".to_string(), 100 * 1024 * 1024); // 100MB kapasiteli node
-        // `store_file` fonksiyonunu çağırarak dosyayı yükleyin
-        storage_node
-            .store_file(&file_name, &data)
-            .await
-            .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;
-        
-        return Ok(format!("File '{}' uploaded and stored successfully!", file_name));
-    }
 
-    Err(axum::http::StatusCode::BAD_REQUEST)
+use actix_web::{App, HttpServer, post, get, delete};
+
+#[derive(Deserialize)]
+struct UploadRequest {
+    node_id: String,
+    file_id: String,
 }
 
-// API handler
-async fn delete_file_handler(
-    Path(file_name): Path<String>,
-    storage_node: Arc<Mutex<String>>, // Storage path'ini paylaşmak için
-) -> Json<String> {
-    let storage_path = storage_node.lock().await; // storage_path'i kilitle
+// #[post("/upload/{file_id}")]
+// async fn upload_file(mut payload: Multipart, form: web::Json<UploadRequest>) -> Result<HttpResponse, Error> {
+//     let node_id = &form.node_id;
+//     let file_id = &form.file_id;
 
-    match delete_file(&storage_path, &file_name) {
-        Ok(_) => Json(format!("File '{}' deleted successfully", file_name)),
-        Err(_) => Json(format!("Error deleting file '{}'", file_name)),
+//     // Loop over the multipart form data (file parts)
+//     while let Some(Ok(mut field)) = payload.next().await {
+//         let content_disposition = field.content_disposition().unwrap();
+//         let file_name = content_disposition.get_filename().unwrap_or("unknown");
+
+//         // Store the file temporarily
+//         let mut file_data = Vec::new();
+//         while let Some(Ok(bytes)) = field.next().await {
+//             file_data.extend_from_slice(&bytes);
+//         }
+
+//         // You can handle file encryption here if needed
+//         // Store the file using the node's store_file method
+//         let source_file_path = "temporary_path_to_file"; // Modify as per your setup
+//         let result = node.store_file(file_id, source_file_path).await;
+
+//         match result {
+//             Ok(_) => {
+//                 // Return success response if file was stored successfully
+//                 return Ok(HttpResponse::Ok().json("File uploaded and stored successfully"));
+//             }
+//             Err(e) => {
+//                 // Handle errors if storing the file fails
+//                 return Ok(HttpResponse::InternalServerError().json(format!("Error storing file: {}", e)));
+//             }
+//         }
+//     }
+
+//     Err(actix_web::error::ErrorBadRequest("File upload failed"))
+// }
+use anyhow::Result;
+
+#[derive(Debug, Deserialize)]
+pub struct FileUpload {
+    pub file_id: String,
+    pub file_path: String,
+}
+#[post("/upload/{file_id}")]
+async fn upload_file(
+    storage_node: web::Data<Arc<Mutex<StorageNode>>>, 
+    form: web::Form<FileUpload>,  // web::Json yerine web::Form
+    mut payload: Multipart,       // multipart veri
+) -> impl Responder {
+    println!("Entering upload_file endpoint...");
+
+
+
+    let file_id = &form.file_id;
+    let file_path = &form.file_path;
+
+    while let Some(Ok(mut field)) = payload.next().await {
+        println!("Form data received: {:?}", form);
+        println!("File received: {:?}", field);
+        println!("Processing field: {:?}", field);
+        let mut file_data = Vec::new();
+        while let Some(Ok(bytes)) = field.next().await {
+            file_data.extend_from_slice(&bytes);
+        }
+
+        let content_disposition = field.content_disposition().unwrap();
+        let file_name = content_disposition.get_filename().unwrap_or("unknown");
+
+        let temp_file_path = format!("./{}", file_name);
+        let mut temp_file = File::create(&temp_file_path).unwrap();
+        //temp_file.write_all(&file_data).unwrap();
+        if let Err(e) = temp_file.write_all(&file_data) {
+            println!("Error writing file: {:?}", e);
+            return HttpResponse::InternalServerError().json(format!("Error writing file: {:?}", e));
+        }
+        
+
+        let mut storage_node = storage_node.lock().await;
+        match storage_node.store_file(file_id, &temp_file_path).await {
+            Ok(_) => {
+                println!("File stored successfully");
+                return HttpResponse::Ok().json("File uploaded and encrypted successfully.");
+            }
+            Err(e) => {
+                println!("Error storing file: {}", e);
+                return HttpResponse::InternalServerError().json(format!("Error: {}", e));
+            }
+        }
+    }
+
+    HttpResponse::BadRequest().json("Failed to upload file.")
+}
+
+#[delete("/delete/{file_id}")]
+async fn delete_file(node: web::Data<Arc<Mutex<StorageNode>>>, file_id: web::Path<String>) -> impl Responder {
+    let file_id = file_id.into_inner();
+    
+    let mut node = node.lock().await;
+    match node.delete_file(&file_id) {
+        Ok(_) => HttpResponse::Ok().body("File deleted successfully"),
+        Err(e) => HttpResponse::InternalServerError().body(format!("Deletion failed: {}", e)),
     }
 }
 
-// Bu API endpoint'ini oluşturuyoruz
-async fn download_file(node: Arc<StorageNode>, Path(file_id): Path<String>, Query(download_path): Query<String>) -> Result<HttpResponse, axum::http::StatusCode> {
-    let download_path = download_path; // URL'den gelen path parametresini al
-
-    match node.retrieve_file(&file_id, &download_path) {
-        Ok(_) => Ok(HttpResponse::Ok().body(format!("File downloaded to {}", download_path))),
-        Err(_) => Ok(HttpResponse::InternalServerError().body("Internal Server Error")),
+#[get("/download/{file_id}")]
+async fn download_file(node: web::Data<Arc<Mutex<StorageNode>>>, file_id: web::Path<String>) -> impl Responder {
+    let file_id = file_id.into_inner();
+    let download_path = format!("downloads/{}.decrypted", file_id);
+    
+    let mut node = node.lock().await;
+    match node.retrieve_file(&file_id, &download_path).await {
+        Ok(_) => {
+            match std::fs::read(&download_path) {
+                Ok(data) => HttpResponse::Ok().body(data),
+                Err(_) => HttpResponse::InternalServerError().body("Failed to read downloaded file"),
+            }
+        }
+        Err(e) => HttpResponse::InternalServerError().body(format!("Download failed: {}", e)),
     }
 }
 
+pub fn config(cfg: &mut web::ServiceConfig) {
+    cfg.service(upload_file);
+    cfg.service(download_file);
+    cfg.service(delete_file);
+}
+
+// #[actix_web::main]
+// async fn main() -> std::io::Result<()> {
+//     let storage_node = StorageNode::new("node1".to_string(), 10_000_000_000).await.unwrap();
+//     let storage_node_data = web::Data::new(storage_node);
+    
+//     HttpServer::new(move || {
+//         App::new()
+//             .app_data(storage_node_data.clone())
+//             .configure(config)
+//     })
+//     .bind("127.0.0.1:8080")?
+//     .run()
+//     .await
+// }
 
 
 /*
