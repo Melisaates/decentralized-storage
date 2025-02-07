@@ -1,10 +1,10 @@
-use axum::{extract::Multipart, routing::post, Router};
-use std::{fs::File, io::Write, path::Path};
+use actix_web::{web::{self, Query}, HttpResponse};
+use axum::{extract::{Multipart, Path}, routing::post, Json, Router, response::IntoResponse};
+use std::{fs::File, io::Write};
 use tower_http::limit::RequestBodyLimitLayer;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-
-use crate::storage_node::StorageNode; // StorageNode'ı doğru şekilde dahil edin
+use crate::node::{StorageNode, delete_file};
 
 // Dosya yükleme işlemi
 async fn upload_file(mut multipart: Multipart) -> Result<String, axum::http::StatusCode> {
@@ -51,12 +51,12 @@ async fn delete_file_handler(
 }
 
 // Bu API endpoint'ini oluşturuyoruz
-async fn download_file(node: web::Data<StorageNode>, web::Path(file_id): web::Path<String>, download_path: web::Query<String>) -> impl Responder {
-    let download_path = download_path.into_inner(); // URL'den gelen path parametresini al
+async fn download_file(node: Arc<StorageNode>, Path(file_id): Path<String>, Query(download_path): Query<String>) -> Result<HttpResponse, axum::http::StatusCode> {
+    let download_path = download_path; // URL'den gelen path parametresini al
 
     match node.retrieve_file(&file_id, &download_path) {
-        Ok(_) => HttpResponse::Ok().body(format!("File downloaded to {}", download_path)),
-        Err(e) => HttpResponse::InternalServerError().body(format!("Error downloading file: {}", e)),
+        Ok(_) => Ok(HttpResponse::Ok().body(format!("File downloaded to {}", download_path))),
+        Err(_) => Ok(HttpResponse::InternalServerError().body("Internal Server Error")),
     }
 }
 

@@ -3,6 +3,7 @@ mod storage_;
 //use bsc_integration::BSCIntegration;
 //mod pbe_;
 use bytes::{Bytes, Buf};
+mod api_;
 use futures::future::ok;
 use node::StorageNode;
 use proof_of_spacetime::periodic_check;
@@ -408,7 +409,28 @@ async fn main() -> Result<()> {
 
 
 
+//P2P
+/*#[tokio::main]
+async fn main() -> Result<()> {
+    // Create a StorageNode with 10 GB of space
+    let node_id = String::from("node_1");
+    let total_space = 10 * 1024 * 1024 * 1024; // 10 GB in bytes
 
+    // Create a new node
+    let mut node = StorageNode::new(node_id, total_space).await?;
+
+    // Store a file (replace with actual file paths)
+    node.store_file("file1", "/path/to/source/file").await?;
+
+    // Retrieve the file (replace with actual destination path)
+    node.retrieve_file("file1", "/path/to/download").await?;
+
+    // Delete a file
+    node.delete_file("file1")?;
+
+    Ok(())
+}
+ */
 
 
 
