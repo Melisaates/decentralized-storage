@@ -2,12 +2,11 @@ mod storage_;
 use actix_web::dev::Service;
 use actix_web::middleware::Logger;
 use actix_web::{web, App, HttpResponse, HttpServer};
-use api_::{config, upload_file};
+mod api_;
 //mod bsc_integration;
 //use bsc_integration::BSCIntegration;
 //mod pbe_;
 use bytes::{Bytes, Buf};
-mod api_;
 use futures::future::ok;
 use node::StorageNode;
 use proof_of_spacetime::periodic_check;
@@ -44,6 +43,16 @@ use std::thread;
 
 
 
+
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
+    println!("Server starting at http://127.0.0.1:8080");
+    api_::run_server().await
+}
+//>> C:\Windows\System32\curl.exe -v -X POST -F "file=@C:\Users\melisates\Documents\WhatsApp Image 2024-12-01 at 14.40.49_48a551a2.jpg" http://localhost:8080/api/v1/files/upload/node1
+//>> C:\Windows\System32\curl.exe -v -X POST -F "file=@C:\Users\melisates\Downloads\1. Algorithms and Computation.mp4" http://localhost:8080/api/v1/files/upload/node1
+
+/*
 fn init_logger() {
     // Actix Web loglarını debug modunda aktif hale getir
     std::env::set_var("RUST_LOG", "actix_web=debug");
@@ -94,11 +103,11 @@ async fn main() -> std::io::Result<()> {
     .run()
     .await
 }
+*/
 
 
 
-
-
+//asıl gerçek main fonksiyonu
 /* 
 async fn main() {
     // AuthSystem ve ProgrammableBusinessEngine örneklerini oluşturma
@@ -176,6 +185,7 @@ async fn main() {
             println!("Depolama düğümü bulunamadı.");
             return;
         }
+
     };
 
 
