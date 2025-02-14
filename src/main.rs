@@ -40,17 +40,36 @@ use futures::executor::block_on;
 use std::net::{TcpListener, TcpStream};
 use std::io::{Read, Write};
 use std::thread;
-
+use log::{info, error};
 
 
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    env_logger::init();
+
+    info!("Sunucu başlatılıyor...");
     println!("Server starting at http://127.0.0.1:8080");
     api_::run_server().await
 }
+//upload file
 //>> C:\Windows\System32\curl.exe -v -X POST -F "file=@C:\Users\melisates\Documents\WhatsApp Image 2024-12-01 at 14.40.49_48a551a2.jpg" http://localhost:8080/api/v1/files/upload/node1
 //>> C:\Windows\System32\curl.exe -v -X POST -F "file=@C:\Users\melisates\Downloads\1. Algorithms and Computation.mp4" http://localhost:8080/api/v1/files/upload/node1
+
+//post node
+//$body = '{"node_id": "node2", "total_space": 1000000000}'
+//Invoke-RestMethod -Uri "http://127.0.0.1:8080/api/v1/nodes" -Method Post -Headers @{ "Content-Type" = "application/json" } -Body $body
+
+//get node
+//Invoke-RestMethod -Uri "http://127.0.0.1:8080/api/v1/nodes/node1" -Method Get
+//curl.exe -v -X GET http://127.0.0.1:8080/api/v1/nodes/node1
+
+//get health node
+//Invoke-RestMethod -Uri "http://127.0.0.1:8080/api/v1/nodes/node1/health" -Method Get
+//curl.exe -v -X GET http://127.0.0.1:8080/api/v1/nodes/node1/health
+
+
+
 
 /*
 fn init_logger() {

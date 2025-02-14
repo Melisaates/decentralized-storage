@@ -206,7 +206,7 @@ async fn upload_file(
             }
 
 
-            let unique_filename = format!("{}_{}", Uuid::new_v4(), filename);
+            let unique_filename: String = format!("{}_{}", Uuid::new_v4(), filename.split('.').next().unwrap_or("").replace(|c: char| !c.is_alphanumeric(), "_"));
             match node.store_file(&unique_filename, &temp_filepath).await {
                 Ok(_) => {
                     println!("File stored successfully");
@@ -260,6 +260,7 @@ async fn download_file(
     match node.retrieve_file(&file_id, &temp_path).await {
         Ok(_) => {
             // Read the file contents
+            println!("Dosya başarıyla alındı: {}", file_id);
             match std::fs::read(&temp_path) {
                 Ok(contents) => {
                     std::fs::remove_file(&temp_path).ok(); // Clean up
@@ -273,7 +274,8 @@ async fn download_file(
                 }
             }
         }
-        Err(e) => HttpResponse::InternalServerError().body(e.to_string()),
+        Err(e) =>{        println!("Dosya alma işlemi sırasında hata oluştu: {}", e);
+            HttpResponse::InternalServerError().body(e.to_string())} 
     }
 }
 

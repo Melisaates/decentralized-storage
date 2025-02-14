@@ -190,26 +190,26 @@ impl StorageNode {
         if file_size > self.available_space {
             return Err(anyhow!("Insufficient storage space").into());
         }
+    // Dosyanın orijinal uzantısını al
+    let extension = source_path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .unwrap_or("");
     
-        // Dosyanın orijinal uzantısını al
-        let extension = source_path
-            .extension()
-            .and_then(|ext| ext.to_str())
-            .unwrap_or("");
+    // Hedef dosya adına uzantıyı ekle
+    let destination_filename = if extension.is_empty() {
+        file_id.to_string()  // Eğer uzantı yoksa, sadece ID kullan
+    } else {
+        format!("{}.{}", file_id, extension) // Örnek: "12345.mp4"
+    };
     
-        //Hedef dosya adına uzantıyı ekle
-        let destination_filename = if extension.is_empty() {
-            file_id.to_string()  // Eğer uzantı yoksa, sadece ID kullan
-        } else {
-            format!("{}.{}", file_id, extension) // Örnk:"12345.mp4"
-        };
+    let destination_path = PathBuf::from(self.get_file_path(&destination_filename));
     
-        let destination_path = PathBuf::from(self.get_file_path(&destination_filename));
-    
-        //Dosya icerigini oku ve şifrele
-        let file_data = fs::read(source_path)?;
-        let encrypted_data = encrypt_data_chunked(file_id, &file_data)?;
-    
+    // Dosya içeriğini oku ve şifrele
+    let file_data = fs::read(source_path)?;
+    let encrypted_data = encrypt_data_chunked(&destination_filename, &file_data)?;
+    println!("encrypt file id {}", destination_filename);
+
         //Şifrelenmiş veriyi hedef dosyaya yaz
         fs::write(&destination_path, encrypted_data)
             .map_err(|e| anyhow!("Failed to write encrypted file: {}", e))?;
@@ -272,6 +272,8 @@ impl StorageNode {
         // Şifreli veriyi çöz
         let decrypted_data = decrypt_data_chunked(file_id, &buffer)
             .map_err(|e| anyhow!("Decryption failed: {}", e))?;
+        println!("decrypt file id {}",file_id);
+
     
         // Kullanıcının verdiği dizine, orijinal isimle kaydet
         let save_path = PathBuf::from(download_path).join(file_name);
