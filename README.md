@@ -1,4 +1,3 @@
-# decentralized-storage
 # Decentralized Storage
 
 This project is a decentralized storage system implemented in Rust, aiming to provide secure, distributed file storage with encryption, peer-to-peer networking, and key management.
